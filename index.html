@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Stortford Bins Collection</title>
+<title>Stortford Bin Collection</title>
 <style>
   body { font-family: Arial, sans-serif; max-width: 600px; margin: 1rem auto; padding: 0 1rem; }
-  label, input, select, button { display: block; margin: 0.5rem 0; font-size: 1rem; }
-  select, button { padding: 0.5rem; }
+  label, input, button { display: block; margin: 0.5rem 0; font-size: 1rem; }
+  button { padding: 0.5rem; }
   #results p, #results ul { margin-top: 1rem; }
 </style>
 </head>
@@ -20,21 +20,14 @@
   <label for="housenumber">House Number:</label>
   <input type="text" id="housenumber" placeholder="e.g. 41" />
 
-  <button id="search">Search Address</button>
-
-  <label for="addressSelect" style="display:none;">Select your address:</label>
-  <select id="addressSelect" style="display:none;"></select>
-
-  <button id="getCollections" style="display:none;">Get Bin Collections</button>
+  <button id="getCollections">Get Bin Collections</button>
 
   <div id="results" aria-live="polite"></div>
 
 <script>
-  const searchBtn = document.getElementById('search');
   const getCollectionsBtn = document.getElementById('getCollections');
   const postcodeInput = document.getElementById('postcode');
   const houseNumberInput = document.getElementById('housenumber');
-  const addressSelect = document.getElementById('addressSelect');
   const resultsDiv = document.getElementById('results');
 
   function normalizePostcode(pc) {
@@ -62,7 +55,7 @@
   }
 
   const binCycle = [
-    ['black', 'brown', 'food'],    // Week 1
+    ['black', 'brown', 'food'],    // Week 1 (week commencing 4 Aug 2025)
     ['blue', 'food'],              // Week 2
     ['purple', 'brown', 'food'],   // Week 3
     ['black', 'food'],             // Week 4
@@ -75,23 +68,30 @@
   function getCycleWeek(today, anchor) {
     const msInWeek = 1000 * 60 * 60 * 24 * 7;
     const diffWeeks = Math.floor((today - anchor) / msInWeek);
-    return ((diffWeeks % 6) + 6) % 6;
+    return ((diffWeeks % 6) + 6) % 6; // positive modulo
   }
 
-  function getCorrectedBinSchedule(today = new Date(), anchor = anchorDate) {
-    const weekIndex = getCycleWeek(today, anchor);
+  function getCorrectedBinSchedule(startDate) {
+    const today = new Date();
+    // Use anchorDate if today is before it, else use today
+    const baseDate = today < anchorDate ? anchorDate : today;
+
+    // Round baseDate to Monday (week start) to align with cycles
+    const day = baseDate.getDay(); // Sunday=0, Monday=1, ...
+    const diffToMonday = (day === 0 ? -6 : 1 - day); // how many days to Monday
+    const monday = new Date(baseDate);
+    monday.setDate(baseDate.getDate() + diffToMonday);
+
+    const weekIndex = getCycleWeek(monday, anchorDate);
+
     const schedule = [];
     for (let i = 0; i < 6; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i * 7);
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i * 7);
       const bins = binCycle[(weekIndex + i) % 6];
       schedule.push({ week: i + 1, date, bins });
     }
     return schedule;
-  }
-
-  function capitalize(str) {
-    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
   function ordinal(n) {
@@ -111,6 +111,10 @@
     return `${weekday} ${day} ${month}`;
   }
 
+  function capitalize(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
   function formatBinWeekOutput(schedule) {
     const first = schedule[0];
     let result = `<p><strong>Your next collection is on ${formatDate(first.date)}: ${first.bins.map(capitalize).join(', ')}</strong></p>`;
@@ -123,17 +127,21 @@
     return result;
   }
 
-  searchBtn.addEventListener('click', async () => {
+  getCollectionsBtn.addEventListener('click', async () => {
     resultsDiv.textContent = '';
-    addressSelect.style.display = 'none';
-    getCollectionsBtn.style.display = 'none';
-    addressSelect.innerHTML = '';
-
     let pc = normalizePostcode(postcodeInput.value);
+    let hn = houseNumberInput.value.trim();
+
     if (!pc) {
       alert('Please enter a postcode.');
       return;
     }
+    if (!hn) {
+      alert('Please enter a house number.');
+      return;
+    }
+
+    resultsDiv.textContent = 'Looking up addresses...';
 
     try {
       const data = await searchAddresses(pc);
@@ -142,58 +150,27 @@
         return;
       }
 
-      const hn = houseNumberInput.value.trim();
-      const filteredAddresses = hn
-        ? data.addresses.filter(a => a.address.toLowerCase().includes(hn.toLowerCase()))
-        : data.addresses;
+      // Find address matching house number (simple case-insensitive substring)
+      const matched = data.addresses.find(a =>
+        a.address.toLowerCase().includes(hn.toLowerCase())
+      );
 
-      if (filteredAddresses.length === 0) {
-        resultsDiv.textContent = 'No addresses found matching that house number.';
+      if (!matched) {
+        resultsDiv.textContent = 'No address found matching that house number.';
         return;
       }
 
-      filteredAddresses.forEach(addr => {
-        const option = document.createElement('option');
-        option.value = JSON.stringify({ uprn: addr.uprn, address: addr.address, propertyType: addr.propertyType });
-        option.textContent = addr.address;
-        addressSelect.appendChild(option);
-      });
+      resultsDiv.textContent = 'Fetching collection details...';
 
-      addressSelect.style.display = 'block';
-      getCollectionsBtn.style.display = 'inline-block';
-      resultsDiv.textContent = '';
-    } catch (e) {
-      resultsDiv.textContent = 'Error searching addresses: ' + e.message;
-    }
-  });
+      const propDetails = await getPropertyDetails(matched.uprn, matched.address, matched.propertyType);
 
-  getCollectionsBtn.addEventListener('click', async () => {
-    resultsDiv.textContent = 'Loading collections...';
-
-    const selected = addressSelect.value;
-    if (!selected) {
-      alert('Please select an address.');
-      return;
-    }
-    const { uprn, address, propertyType } = JSON.parse(selected);
-
-    try {
-      const propDetails = await getPropertyDetails(uprn, address, propertyType);
-
-      const today = new Date();
-      const futureCollections = propDetails.collections
-        .map(c => ({ ...c, dateObj: new Date(c.collectionDate) }))
-        .filter(c => c.dateObj >= today)
-        .sort((a,b) => a.dateObj - b.dateObj);
-
-      const anchorFromApi = futureCollections.length > 0 ? futureCollections[0].dateObj : today;
-
-      const schedule = getCorrectedBinSchedule(anchorFromApi);
+      // Ignore API returned collection dates and use our cycle instead
+      const schedule = getCorrectedBinSchedule();
 
       resultsDiv.innerHTML = formatBinWeekOutput(schedule);
 
     } catch (e) {
-      resultsDiv.textContent = 'Error fetching collection details: ' + e.message;
+      resultsDiv.textContent = 'Error: ' + e.message;
     }
   });
 </script>
