@@ -1,176 +1,225 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Stortford Bin Collection</title>
-<style>
-  body { font-family: Arial, sans-serif; max-width: 600px; margin: 1rem auto; padding: 0 1rem; }
-  label, input, button { display: block; margin: 0.5rem 0; font-size: 1rem; }
-  button { padding: 0.5rem; }
-  #results p, #results ul { margin-top: 1rem; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bishop's Stortford New Bin Collection Lookup</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 1rem auto;
+      padding: 0 1rem;
+    }
+    label, input, button {
+      display: block;
+      margin: 0.5rem 0;
+      font-size: 1rem;
+    }
+    input#postcode,
+    input#housenumber {
+      width: 100%;
+      max-width: 400px;
+      box-sizing: border-box;
+      font-size: 1rem;
+      padding: 0.4rem 0.5rem;
+    }
+    button {
+      padding: 0.5rem;
+      font-size: 1rem;
+      cursor: pointer;
+      max-width: 400px;
+    }
+    #results p,
+    #results ul {
+      margin-top: 1rem;
+    }
+    @media (max-width: 400px) {
+      body {
+        padding: 0 0.5rem;
+      }
+      input#postcode,
+      input#housenumber,
+      button {
+        max-width: 100%;
+        width: 100%;
+      }
+      button {
+        font-size: 1.1rem;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h1>Stortford Bin Collection Lookup</h1>
+  <h1>Bishop's Stortford New Bin Collection Lookup</h1>
+  <label for="postcode">Postcode</label>
+  <input id="postcode" type="text" placeholder="e.g. CM23 5HE or CM235HE" />
 
-  <label for="postcode">Postcode:</label>
-  <input type="text" id="postcode" placeholder="e.g. CM23 5HE or CM235HE" autocomplete="postal-code" />
-
-  <label for="housenumber">House Number:</label>
-  <input type="text" id="housenumber" placeholder="e.g. 41" />
+  <label for="housenumber">House Number</label>
+  <input id="housenumber" type="text" placeholder="e.g. 41" />
 
   <button id="getCollections">Get Bin Collections</button>
 
-  <div id="results" aria-live="polite"></div>
+  <div id="results"></div>
 
 <script>
-  const getCollectionsBtn = document.getElementById('getCollections');
+  const apiSearch = '/api/search-addresses';
+  const apiDetails = '/api/property-details';
+
   const postcodeInput = document.getElementById('postcode');
   const houseNumberInput = document.getElementById('housenumber');
+  const getCollectionsBtn = document.getElementById('getCollections');
   const resultsDiv = document.getElementById('results');
 
+  const cache = new Map(); // Cache key: postcode + house number
+
   function normalizePostcode(pc) {
-    return pc.toUpperCase().replace(/\s/g, '');
+    let p = pc.toUpperCase().replace(/\s+/g, '');
+    if (p.length > 3) {
+      return p.slice(0, -3) + ' ' + p.slice(-3);
+    }
+    return p;
   }
 
-  async function searchAddresses(postcode) {
-    const resp = await fetch('/api/search-addresses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postcode }),
-    });
-    if (!resp.ok) throw new Error('Failed to search addresses');
-    return await resp.json();
-  }
-
-  async function getPropertyDetails(uprn, address, propertyType) {
-    const resp = await fetch('/api/property-details', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uprn, address, propertyType }),
-    });
-    if (!resp.ok) throw new Error('Failed to get property details');
-    return await resp.json();
-  }
+  const baselineDate = new Date('2025-08-04T00:00:00Z');
 
   const binCycle = [
-    ['black', 'brown', 'food'],    // Week 1 (week commencing 4 Aug 2025)
-    ['blue', 'food'],              // Week 2
-    ['purple', 'brown', 'food'],   // Week 3
-    ['black', 'food'],             // Week 4
-    ['blue', 'brown', 'food'],     // Week 5
-    ['purple', 'food']             // Week 6
+    ['black', 'brown', 'food'],
+    ['blue', 'food'],
+    ['purple', 'brown', 'food'],
+    ['black', 'food'],
+    ['blue', 'brown', 'food'],
+    ['purple', 'food']
   ];
 
-  const anchorDate = new Date('2025-08-04T00:00:00Z');
+  function formatDate(date) {
+    const day = date.getDate();
+    let suffix = 'th';
+    if (day === 1 || day === 21 || day === 31) suffix = 'st';
+    else if (day === 2 || day === 22) suffix = 'nd';
+    else if (day === 3 || day === 23) suffix = 'rd';
 
-  function getCycleWeek(today, anchor) {
-    const msInWeek = 1000 * 60 * 60 * 24 * 7;
-    const diffWeeks = Math.floor((today - anchor) / msInWeek);
-    return ((diffWeeks % 6) + 6) % 6; // positive modulo
+    const weekday = date.toLocaleDateString(undefined, { weekday: 'long' });
+    const month = date.toLocaleDateString(undefined, { month: 'long' });
+    return `${weekday} ${day}${suffix} ${month}`;
   }
 
-  function getCorrectedBinSchedule(startDate) {
-    const today = new Date();
-    // Use anchorDate if today is before it, else use today
-    const baseDate = today < anchorDate ? anchorDate : today;
+  function getWeekIndex(date) {
+    const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+    const diff = date - baselineDate;
+    return diff < 0 ? 0 : Math.floor(diff / msPerWeek);
+  }
 
-    // Round baseDate to Monday (week start) to align with cycles
-    const day = baseDate.getDay(); // Sunday=0, Monday=1, ...
-    const diffToMonday = (day === 0 ? -6 : 1 - day); // how many days to Monday
-    const monday = new Date(baseDate);
-    monday.setDate(baseDate.getDate() + diffToMonday);
+  function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+  }
 
-    const weekIndex = getCycleWeek(monday, anchorDate);
+  function renderCollections(startDate, collections) {
+    clearChildren(resultsDiv);
 
-    const schedule = [];
+    const startWeek = getWeekIndex(startDate);
+
+    const pIntro = document.createElement('p');
+    pIntro.textContent = `Your next collection week commencing ${formatDate(startDate)}:`;
+    resultsDiv.appendChild(pIntro);
+
+    const ul = document.createElement('ul');
+
     for (let i = 0; i < 6; i++) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i * 7);
-      const bins = binCycle[(weekIndex + i) % 6];
-      schedule.push({ week: i + 1, date, bins });
+      const weekIndex = (startWeek + i) % binCycle.length;
+      const weekDate = new Date(startDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+      const binsThisWeek = [];
+
+      binCycle[weekIndex].forEach(binType => {
+        const found = collections.find(c => c.binType.toLowerCase() === binType);
+        if (found) {
+          let material = '';
+          switch (binType) {
+            case 'black': material = 'Refuse'; break;
+            case 'blue': material = 'Paper/Card'; break;
+            case 'purple': material = 'Recycling'; break;
+            case 'brown': material = 'Garden Waste'; break;
+            case 'food': material = 'Food/Compost'; break;
+            default: material = found.serviceName || binType; break;
+          }
+          binsThisWeek.push(`${binType.charAt(0).toUpperCase() + binType.slice(1)} (${material})`);
+        }
+      });
+
+      if (binsThisWeek.length === 0) binsThisWeek.push('No collection');
+
+      const li = document.createElement('li');
+      li.innerHTML = `<strong>Week ${i + 1} (${formatDate(weekDate)}):</strong> ${binsThisWeek.join(', ')}`;
+      ul.appendChild(li);
     }
-    return schedule;
+    resultsDiv.appendChild(ul);
   }
 
-  function ordinal(n) {
-    if (n > 3 && n < 21) return n + 'th';
-    switch (n % 10) {
-      case 1: return n + 'st';
-      case 2: return n + 'nd';
-      case 3: return n + 'rd';
-      default: return n + 'th';
+  async function fetchCollections(postcode, houseNumber) {
+    const cacheKey = postcode + '|' + houseNumber;
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey);
     }
-  }
 
-  function formatDate(d) {
-    const weekday = d.toLocaleDateString('en-GB', { weekday: 'long' });
-    const day = ordinal(d.getDate());
-    const month = d.toLocaleDateString('en-GB', { month: 'long' });
-    return `${weekday} ${day} ${month}`;
-  }
+    const searchResp = await fetch(apiSearch, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postcode })
+    });
 
-  function capitalize(str) {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  }
+    const searchData = await searchResp.json();
 
-  function formatBinWeekOutput(schedule) {
-    const first = schedule[0];
-    let result = `<p><strong>Your next collection is on ${formatDate(first.date)}: ${first.bins.map(capitalize).join(', ')}</strong></p>`;
-    result += `<p><strong>Following weeks:</strong></p><ul>`;
-    for (let i = 1; i < schedule.length; i++) {
-      const week = schedule[i];
-      result += `<li><strong>Week ${week.week}</strong> – ${formatDate(week.date)}: ${week.bins.map(capitalize).join(', ')}</li>`;
+    if (!searchData.addresses || searchData.addresses.length === 0) {
+      throw new Error('No addresses found for that postcode.');
     }
-    result += '</ul>';
-    return result;
+
+    const address = searchData.addresses.find(a =>
+      a.address.toLowerCase().includes(houseNumber.toLowerCase())
+    );
+
+    if (!address) {
+      throw new Error('House number not found for that postcode.');
+    }
+
+    const detailsResp = await fetch(apiDetails, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uprn: address.uprn,
+        address: address.address,
+        propertyType: address.propertyType
+      })
+    });
+
+    const detailsData = await detailsResp.json();
+
+    if (!detailsData.collections) {
+      throw new Error('No collection data available for this address.');
+    }
+
+    cache.set(cacheKey, detailsData.collections);
+    return detailsData.collections;
   }
 
   getCollectionsBtn.addEventListener('click', async () => {
-    resultsDiv.textContent = '';
-    let pc = normalizePostcode(postcodeInput.value);
-    let hn = houseNumberInput.value.trim();
+    resultsDiv.textContent = 'Loading...';
+    const rawPostcode = postcodeInput.value.trim();
+    const rawHouseNumber = houseNumberInput.value.trim();
 
-    if (!pc) {
-      alert('Please enter a postcode.');
-      return;
-    }
-    if (!hn) {
-      alert('Please enter a house number.');
+    if (!rawPostcode || !rawHouseNumber) {
+      resultsDiv.textContent = 'Please enter both postcode and house number.';
       return;
     }
 
-    resultsDiv.textContent = 'Looking up addresses...';
+    const postcode = normalizePostcode(rawPostcode);
 
     try {
-      const data = await searchAddresses(pc);
-      if (!data.addresses || data.addresses.length === 0) {
-        resultsDiv.textContent = 'No addresses found for that postcode.';
-        return;
-      }
-
-      // Find address matching house number (simple case-insensitive substring)
-      const matched = data.addresses.find(a =>
-        a.address.toLowerCase().includes(hn.toLowerCase())
-      );
-
-      if (!matched) {
-        resultsDiv.textContent = 'No address found matching that house number.';
-        return;
-      }
-
-      resultsDiv.textContent = 'Fetching collection details...';
-
-      const propDetails = await getPropertyDetails(matched.uprn, matched.address, matched.propertyType);
-
-      // Ignore API returned collection dates and use our cycle instead
-      const schedule = getCorrectedBinSchedule();
-
-      resultsDiv.innerHTML = formatBinWeekOutput(schedule);
-
-    } catch (e) {
-      resultsDiv.textContent = 'Error: ' + e.message;
+      const collections = await fetchCollections(postcode, rawHouseNumber);
+      const today = new Date();
+      const startDate = today < baselineDate ? baselineDate : today;
+      renderCollections(startDate, collections);
+    } catch (error) {
+      resultsDiv.textContent = error.message || 'Error fetching data. Please try again later.';
     }
   });
 </script>
