@@ -371,6 +371,18 @@
       resultsDiv.textContent = error.message || 'Error fetching data. Please try again later.';
     }
   });
+
+  postcodeInput.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        getCollectionsBtn.click();
+    }
+    });
+
+    houseNumberInput.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        getCollectionsBtn.click();
+    }
+    });
 </script>
 </body>
 </html>
