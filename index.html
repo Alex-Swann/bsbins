@@ -5,6 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bishop's Stortford New Bin Collection Lookup</title>
   <style>
+    .callout-box {
+        max-width: 400px;        /* narrower than header */
+        margin: 1rem auto;
+        padding: 1rem 1.5rem;
+        border: 2px solid #2a649e;
+        border-radius: 8px;
+        background-color: #f0f8ff;
+        text-align: center;
+        font-size: 1rem;
+        color: grey;
+    }
+
+    .callout-box p {
+        margin: 0 0 0.5rem 0;
+    }
+
+    .callout-box a {
+        color: #2a649e;
+        font-weight: bold;
+        text-decoration: none;
+    }
+
+    .callout-box a:hover,
+    .callout-box a:focus {
+     text-decoration: underline;
+    }
    .bin-label {
         padding: 0.3em 0.6em;
         border-radius: 0.5em;
@@ -146,7 +172,15 @@
   <button id="getCollections">Get Bin Collections</button>
 
   <div id="results"></div>
-
+    <div class="callout-box">
+    <p class="hint-text">
+        If there are any issues with this service, as it is free and casually managed,
+        please refer to the following link:
+    </p>
+    <a href="https://www.eastherts.gov.uk/bins-waste-and-recycling/find-your-bin-collection-day" target="_blank" rel="noopener noreferrer">
+        East Herts Council Bin Collection Information
+    </a>
+    </div>
 <script>
   const apiSearch = '/api/search-addresses';
   const apiDetails = '/api/property-details';
