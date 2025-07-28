@@ -144,31 +144,43 @@
     const ul = document.createElement('ul');
 
     for (let i = 0; i < 6; i++) {
-      const weekIndex = (startWeek + i) % binCycle.length;
-      const weekDate = new Date(startDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
-      const binsThisWeek = [];
+        const weekIndex = (startWeek + i) % binCycle.length;
+        const weekDate = new Date(startDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
 
-      binCycle[weekIndex].forEach(binType => {
-        const found = collections.find(c => c.binType.toLowerCase() === binType);
-        if (found) {
-          let material = '';
-          switch (binType) {
-            case 'black': material = 'Refuse'; break;
-            case 'blue': material = 'Paper/Card'; break;
-            case 'purple': material = 'Recycling'; break;
-            case 'brown': material = 'Garden Waste'; break;
-            case 'food': material = 'Food/Compost'; break;
-            default: material = found.serviceName || binType; break;
-          }
-          binsThisWeek.push(`${binType.charAt(0).toUpperCase() + binType.slice(1)} (${material})`);
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>Week ${i + 1} (${formatDate(weekDate)}):</strong>`;
+
+        // Container for bins under each week
+        const binsContainer = document.createElement('div');
+        binsContainer.style.marginLeft = '1em'; // indent bins slightly
+
+        binCycle[weekIndex].forEach(binType => {
+            const found = collections.find(c => c.binType.toLowerCase() === binType);
+            if (found) {
+            let material = '';
+            switch (binType) {
+                case 'black': material = 'Refuse'; break;
+                case 'blue': material = 'Paper/Card'; break;
+                case 'purple': material = 'Recycling'; break;
+                case 'brown': material = 'Garden Waste'; break;
+                case 'food': material = 'Food/Compost'; break;
+                default: material = found.serviceName || binType; break;
+            }
+            const binLine = document.createElement('div');
+            binLine.textContent = `${binType.charAt(0).toUpperCase() + binType.slice(1)} (${material})`;
+            binLine.classList.add(binType.toLowerCase());
+            binsContainer.appendChild(binLine);
+            }
+        });
+
+        if (!binsContainer.hasChildNodes()) {
+            const noBins = document.createElement('div');
+            noBins.textContent = 'No collection';
+            binsContainer.appendChild(noBins);
         }
-      });
 
-      if (binsThisWeek.length === 0) binsThisWeek.push('No collection');
-
-      const li = document.createElement('li');
-      li.innerHTML = `<strong>Week ${i + 1} (${formatDate(weekDate)}):</strong> ${binsThisWeek.join(', ')}`;
-      ul.appendChild(li);
+        li.appendChild(binsContainer);
+        ul.appendChild(li);
     }
     resultsDiv.appendChild(ul);
   }
