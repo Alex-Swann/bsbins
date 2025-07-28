@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bishop's Stortford New Bin Collection Lookup</title>
   <style>
+    .black { color: black; }
+    .blue { color: #007BFF; }        /* bright blue */
+    .purple { color: #800080; }     /* purple */
+    .brown { color: #8B4513; }      /* brown */
+    .food { color: #228B22; }       /* forest green for food/compost */
     .title {
         font-size: 2em;
         font-weight: bold;
@@ -76,72 +81,75 @@
   <div id="results"></div>
 
 <script>
-  const apiSearch = '/api/search-addresses';
-  const apiDetails = '/api/property-details';
-
-  const postcodeInput = document.getElementById('postcode');
-  const houseNumberInput = document.getElementById('housenumber');
-  const getCollectionsBtn = document.getElementById('getCollections');
-  const resultsDiv = document.getElementById('results');
-
-  const cache = new Map(); // Cache key: postcode + house number
-
-  function normalizePostcode(pc) {
-    let p = pc.toUpperCase().replace(/\s+/g, '');
-    if (p.length > 3) {
-      return p.slice(0, -3) + ' ' + p.slice(-3);
-    }
-    return p;
-  }
-
-  const baselineDate = new Date('2025-08-04T00:00:00Z');
-
+  // Your bin cycle as you prefer it
   const binCycle = [
-    ['black', 'brown', 'food'],
-    ['blue', 'food'],
-    ['purple', 'brown', 'food'],
-    ['black', 'food'],
-    ['blue', 'brown', 'food'],
-    ['purple', 'food']
+    ['black', 'brown', 'food'],    // Week 1 (week commencing 4 Aug 2025)
+    ['blue', 'food'],              // Week 2
+    ['purple', 'brown', 'food'],   // Week 3
+    ['black', 'food'],             // Week 4
+    ['blue', 'brown', 'food'],     // Week 5
+    ['purple', 'food']             // Week 6
   ];
 
+  // Format date as e.g. Monday 4th August 2025
   function formatDate(date) {
-    const day = date.getDate();
-    let suffix = 'th';
-    if (day === 1 || day === 21 || day === 31) suffix = 'st';
-    else if (day === 2 || day === 22) suffix = 'nd';
-    else if (day === 3 || day === 23) suffix = 'rd';
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-    const weekday = date.toLocaleDateString(undefined, { weekday: 'long' });
-    const month = date.toLocaleDateString(undefined, { month: 'long' });
-    return `${weekday} ${day}${suffix} ${month}`;
+    const dayName = days[date.getDay()];
+    const dayNum = date.getDate();
+    const monthName = months[date.getMonth()];
+    const year = date.getFullYear();
+
+    function nth(d) {
+      if (d > 3 && d < 21) return 'th';
+      switch (d % 10) {
+        case 1:  return "st";
+        case 2:  return "nd";
+        case 3:  return "rd";
+        default: return "th";
+      }
+    }
+
+    return `${dayName} ${dayNum}${nth(dayNum)} ${monthName} ${year}`;
   }
 
-  function getWeekIndex(date) {
-    const msPerWeek = 7 * 24 * 60 * 60 * 1000;
-    const diff = date - baselineDate;
-    return diff < 0 ? 0 : Math.floor(diff / msPerWeek);
+  // Get the Monday of the week for a given date
+  function getMonday(d) {
+    d = new Date(d);
+    const day = d.getDay();
+    const diff = (day === 0 ? -6 : 1) - day; // adjust when day is Sunday
+    d.setDate(d.getDate() + diff);
+    return d;
   }
 
-  function clearChildren(el) {
-    while (el.firstChild) el.removeChild(el.firstChild);
-  }
+  // Render collections list into container element
+  function renderCollections(collections, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = ''; // clear existing content
 
-  function renderCollections(startDate, collections) {
-    clearChildren(resultsDiv);
+    // Determine start week date: 4 Aug 2025 or next Monday if today is after
+    const fixedMonday = new Date('2025-08-04T00:00:00');
+    const todayMonday = getMonday(new Date());
+    const startDate = todayMonday < fixedMonday ? fixedMonday : todayMonday;
 
-    const startWeek = getWeekIndex(startDate);
-
-    const pIntro = document.createElement('p');
-    pIntro.textContent = `Your next collection week commencing ${formatDate(startDate)}:`;
-    resultsDiv.appendChild(pIntro);
+    // Find current week index in binCycle relative to startDate
+    // Number of weeks passed since fixedMonday
+    const weeksPassed = Math.floor((getMonday(todayMonday) - getMonday(fixedMonday)) / (7 * 24 * 60 * 60 * 1000));
+    // This pointer starts cycle at right place
+    const startWeek = weeksPassed >= 0 ? weeksPassed % binCycle.length : 0;
 
     const ul = document.createElement('ul');
 
     for (let i = 0; i < 6; i++) {
       const weekIndex = (startWeek + i) % binCycle.length;
       const weekDate = new Date(startDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
-      const binsThisWeek = [];
+
+      const li = document.createElement('li');
+      li.innerHTML = `<strong>Week ${i + 1} (${formatDate(weekDate)}):</strong>`;
+
+      const binsContainer = document.createElement('div');
+      binsContainer.style.marginLeft = '1em';
 
       binCycle[weekIndex].forEach(binType => {
         const found = collections.find(c => c.binType.toLowerCase() === binType);
@@ -155,86 +163,25 @@
             case 'food': material = 'Food/Compost'; break;
             default: material = found.serviceName || binType; break;
           }
-          binsThisWeek.push(`${binType.charAt(0).toUpperCase() + binType.slice(1)} (${material})`);
+          const binLine = document.createElement('div');
+          binLine.textContent = `${binType.charAt(0).toUpperCase() + binType.slice(1)} (${material})`;
+          binLine.classList.add(binType.toLowerCase());
+          binsContainer.appendChild(binLine);
         }
       });
 
-      if (binsThisWeek.length === 0) binsThisWeek.push('No collection');
+      if (!binsContainer.hasChildNodes()) {
+        const noBins = document.createElement('div');
+        noBins.textContent = 'No collection';
+        binsContainer.appendChild(noBins);
+      }
 
-      const li = document.createElement('li');
-      li.innerHTML = `<strong>Week ${i + 1} (${formatDate(weekDate)}):</strong> ${binsThisWeek.join(', ')}`;
+      li.appendChild(binsContainer);
       ul.appendChild(li);
     }
-    resultsDiv.appendChild(ul);
+
+    container.appendChild(ul);
   }
-
-  async function fetchCollections(postcode, houseNumber) {
-    const cacheKey = postcode + '|' + houseNumber;
-    if (cache.has(cacheKey)) {
-      return cache.get(cacheKey);
-    }
-
-    const searchResp = await fetch(apiSearch, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postcode })
-    });
-
-    const searchData = await searchResp.json();
-
-    if (!searchData.addresses || searchData.addresses.length === 0) {
-      throw new Error('No addresses found for that postcode.');
-    }
-
-    const address = searchData.addresses.find(a =>
-      a.address.toLowerCase().includes(houseNumber.toLowerCase())
-    );
-
-    if (!address) {
-      throw new Error('House number not found for that postcode.');
-    }
-
-    const detailsResp = await fetch(apiDetails, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        uprn: address.uprn,
-        address: address.address,
-        propertyType: address.propertyType
-      })
-    });
-
-    const detailsData = await detailsResp.json();
-
-    if (!detailsData.collections) {
-      throw new Error('No collection data available for this address.');
-    }
-
-    cache.set(cacheKey, detailsData.collections);
-    return detailsData.collections;
-  }
-
-  getCollectionsBtn.addEventListener('click', async () => {
-    resultsDiv.textContent = 'Loading...';
-    const rawPostcode = postcodeInput.value.trim();
-    const rawHouseNumber = houseNumberInput.value.trim();
-
-    if (!rawPostcode || !rawHouseNumber) {
-      resultsDiv.textContent = 'Please enter both postcode and house number.';
-      return;
-    }
-
-    const postcode = normalizePostcode(rawPostcode);
-
-    try {
-      const collections = await fetchCollections(postcode, rawHouseNumber);
-      const today = new Date();
-      const startDate = today < baselineDate ? baselineDate : today;
-      renderCollections(startDate, collections);
-    } catch (error) {
-      resultsDiv.textContent = error.message || 'Error fetching data. Please try again later.';
-    }
-  });
 </script>
 </body>
 </html>
