@@ -6,14 +6,11 @@
   <title>Bishop's Stortford New Bin Collection Lookup</title>
   <style>
     .bin-label {
-        padding: 0.3em 0.6em;
-        border-radius: 0.5em;
+        padding: 0.2em 0.5em;
+        border-radius: 0.3em;
         font-weight: bold;
         display: inline-block;
-        margin-bottom: 0.4em;
-        margin-right: 0.6em;       /* Added horizontal spacing */
-        min-width: 160px;
-        text-align: center;
+        margin-bottom: 0.2em;
     }
 
     .black {
@@ -36,8 +33,6 @@
         font-size: 2em;
         font-weight: bold;
         line-height: 1.2;
-        text-align: center;
-        margin-bottom: 1rem;
     }
     .title span {
         display: block; /* forces new line */
@@ -46,19 +41,15 @@
         margin-top: 0.1em;
     }
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: Arial, sans-serif;
       max-width: 600px;
       margin: 1rem auto;
       padding: 0 1rem;
-      background: #f9f9f9;
-      color: #222;
-      text-align: center;  /* Center entire page content */
     }
-    label {
+    label, input, button {
       display: block;
-      margin: 0.5rem auto 0.25rem;  /* Center label horizontally */
-      max-width: 400px;
-      text-align: left;
+      margin: 0.5rem 0;
+      font-size: 1rem;
     }
     input#postcode,
     input#housenumber {
@@ -67,68 +58,29 @@
       box-sizing: border-box;
       font-size: 1rem;
       padding: 0.4rem 0.5rem;
-      margin: 0 auto 0.5rem;  /* Center inputs */
-      display: block;
     }
     button {
       padding: 0.5rem;
       font-size: 1rem;
       cursor: pointer;
       max-width: 400px;
-      width: 100%;
-      margin: 0.75rem auto 1rem;  /* Center button */
-      display: block;
     }
     #results p,
     #results ul {
       margin-top: 1rem;
-      text-align: left;  /* Align results text left for readability */
     }
-
-    /* Week container */
-    .week {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 6px rgb(0 0 0 / 0.1);
-      margin-bottom: 2rem;      /* gap between weeks */
-      padding: 1rem 1.5rem;
-      width: 66%;               /* two thirds width */
-      margin-left: auto;
-      margin-right: auto;
-      text-align: center;
-    }
-    .week-number {
-      font-weight: 700;
-      font-size: 1.2rem;
-      margin-bottom: 1rem;
-      color: #444;
-    }
-    /* Container for bins under each week */
-    .bins-container {
-      margin-left: 0;
-    }
-
     @media (max-width: 400px) {
       body {
         padding: 0 0.5rem;
-        text-align: left;  /* revert on small screens */
-      }
-      label {
-        max-width: 100%;
-        margin-left: 0;
       }
       input#postcode,
       input#housenumber,
       button {
         max-width: 100%;
         width: 100%;
-        margin-left: 0;
       }
       button {
         font-size: 1.1rem;
-      }
-      .week {
-        width: 100%;
       }
     }
   </style>
@@ -203,53 +155,40 @@
     clearChildren(resultsDiv);
 
     const startWeek = getWeekIndex(startDate);
-    const beforeBaseline = startDate < baselineDate;
+
+    const pIntro = document.createElement('p');
+    pIntro.textContent = `Your next collection week commencing ${formatDate(startDate)}:`;
+    resultsDiv.appendChild(pIntro);
+
+    const ul = document.createElement('ul');
 
     for (let i = 0; i < 6; i++) {
         const weekIndex = (startWeek + i) % binCycle.length;
         const weekDate = new Date(startDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
 
-        const weekDiv = document.createElement('div');
-        weekDiv.classList.add('week');
-
-        const weekNumberDiv = document.createElement('div');
-        weekNumberDiv.classList.add('week-number');
-
-        // Determine week label text
-        let weekLabel;
-        if (beforeBaseline) {
-          // startDate before baseline
-          if (i === 0) weekLabel = 'Next Week';
-          else weekLabel = `Week ${i + 1}`;
-        } else {
-          // startDate on or after baseline
-          if (i === 0) weekLabel = 'Current Week';
-          else if (i === 1) weekLabel = 'Next Week';
-          else weekLabel = `Week ${i + 1}`;
-        }
-        weekNumberDiv.textContent = `${weekLabel} (${formatDate(weekDate)}):`;
-        weekDiv.appendChild(weekNumberDiv);
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>Week ${i + 1} (${formatDate(weekDate)}):</strong>`;
 
         // Container for bins under each week
         const binsContainer = document.createElement('div');
-        binsContainer.classList.add('bins-container');
+        binsContainer.style.marginLeft = '1em'; // indent bins slightly
 
         binCycle[weekIndex].forEach(binType => {
             const found = collections.find(c => c.binType.toLowerCase() === binType);
             if (found) {
-                let material = '';
-                switch (binType) {
-                    case 'black': material = 'Refuse'; break;
-                    case 'blue': material = 'Paper/Card'; break;
-                    case 'purple': material = 'Recycling'; break;
-                    case 'brown': material = 'Garden Waste'; break;
-                    case 'food': material = 'Food/Compost'; break;
-                    default: material = found.serviceName || binType; break;
-                }
-                const binLine = document.createElement('div');
-                binLine.textContent = `${binType.charAt(0).toUpperCase() + binType.slice(1)} (${material})`;
-                binLine.classList.add(binType.toLowerCase(), 'bin-label');
-                binsContainer.appendChild(binLine);
+            let material = '';
+            switch (binType) {
+                case 'black': material = 'Refuse'; break;
+                case 'blue': material = 'Paper/Card'; break;
+                case 'purple': material = 'Recycling'; break;
+                case 'brown': material = 'Garden Waste'; break;
+                case 'food': material = 'Food/Compost'; break;
+                default: material = found.serviceName || binType; break;
+            }
+            const binLine = document.createElement('div');
+            binLine.textContent = `${binType.charAt(0).toUpperCase() + binType.slice(1)} (${material})`;
+            binLine.classList.add(binType.toLowerCase());
+            binsContainer.appendChild(binLine);
             }
         });
 
@@ -259,9 +198,10 @@
             binsContainer.appendChild(noBins);
         }
 
-        weekDiv.appendChild(binsContainer);
-        resultsDiv.appendChild(weekDiv);
+        li.appendChild(binsContainer);
+        ul.appendChild(li);
     }
+    resultsDiv.appendChild(ul);
   }
 
   async function fetchCollections(postcode, houseNumber) {
@@ -272,55 +212,63 @@
 
     const searchResp = await fetch(apiSearch, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({postcode})
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postcode })
     });
-    if (!searchResp.ok) {
-      throw new Error('Failed to search addresses');
-    }
+
     const searchData = await searchResp.json();
 
     if (!searchData.addresses || searchData.addresses.length === 0) {
-      throw new Error('No addresses found');
+      throw new Error('No addresses found for that postcode.');
     }
 
-    // Find matching house number
-    const foundAddress = searchData.addresses.find(addr => {
-      return addr.houseNumber === houseNumber;
+    const address = searchData.addresses.find(a =>
+      a.address.toLowerCase().includes(houseNumber.toLowerCase())
+    );
+
+    if (!address) {
+      throw new Error('House number not found for that postcode.');
+    }
+
+    const detailsResp = await fetch(apiDetails, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uprn: address.uprn,
+        address: address.address,
+        propertyType: address.propertyType
+      })
     });
 
-    if (!foundAddress) {
-      throw new Error('House number not found');
-    }
-
-    const detailsResp = await fetch(apiDetails + '?uprn=' + foundAddress.uprn);
-    if (!detailsResp.ok) {
-      throw new Error('Failed to fetch property details');
-    }
     const detailsData = await detailsResp.json();
 
-    cache.set(cacheKey, detailsData);
-    return detailsData;
+    if (!detailsData.collections) {
+      throw new Error('No collection data available for this address.');
+    }
+
+    cache.set(cacheKey, detailsData.collections);
+    return detailsData.collections;
   }
 
   getCollectionsBtn.addEventListener('click', async () => {
-    const postcodeRaw = postcodeInput.value.trim();
-    const houseNumberRaw = houseNumberInput.value.trim();
-    if (!postcodeRaw || !houseNumberRaw) {
-      alert('Please enter both postcode and house number');
+    resultsDiv.textContent = 'Loading...';
+    const rawPostcode = postcodeInput.value.trim();
+    const rawHouseNumber = houseNumberInput.value.trim();
+
+    if (!rawPostcode || !rawHouseNumber) {
+      resultsDiv.textContent = 'Please enter both postcode and house number.';
       return;
     }
-    const postcode = normalizePostcode(postcodeRaw);
 
-    resultsDiv.textContent = 'Loading...';
+    const postcode = normalizePostcode(rawPostcode);
 
     try {
-      const data = await fetchCollections(postcode, houseNumberRaw);
-      // Assume data.collections and data.startDate (ISO string)
-      const startDate = new Date(data.startDate);
-      renderCollections(startDate, data.collections);
-    } catch (err) {
-      resultsDiv.textContent = 'Error: ' + err.message;
+      const collections = await fetchCollections(postcode, rawHouseNumber);
+      const today = new Date();
+      const startDate = today < baselineDate ? baselineDate : today;
+      renderCollections(startDate, collections);
+    } catch (error) {
+      resultsDiv.textContent = error.message || 'Error fetching data. Please try again later.';
     }
   });
 </script>
