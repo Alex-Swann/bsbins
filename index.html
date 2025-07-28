@@ -303,9 +303,9 @@
             if (found) {
                 let material = '';
                 switch (binType) {
-                    case 'black': material = 'Refuse'; break;
-                    case 'blue': material = 'Paper/Card'; break;
-                    case 'purple': material = 'Recycling'; break;
+                    case 'black': material = 'Mixed Recycling'; break;
+                    case 'blue': material = 'Paper/Cardboard'; break;
+                    case 'purple': material = 'Refuse/Non-Recycling'; break;
                     case 'brown': material = 'Garden Waste'; break;
                     case 'food': material = 'Food/Compost'; break;
                     default: material = found.serviceName || binType; break;
