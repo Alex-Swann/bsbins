@@ -5,6 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bishop's Stortford New Bin Collection Lookup</title>
   <style>
+    .spinner {
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-left-color: #0057B8;  /* Blue color or choose your preferred */
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 0.5em;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
     .callout-box {
         max-width: 400px;        /* narrower than header */
         margin: 1rem auto;
@@ -351,7 +366,7 @@
   }
 
   getCollectionsBtn.addEventListener('click', async () => {
-    resultsDiv.textContent = 'Loading...';
+    resultsDiv.innerHTML = '<span class="spinner"></span> Loading...';
     const rawPostcode = postcodeInput.value.trim();
     const rawHouseNumber = houseNumberInput.value.trim();
 
