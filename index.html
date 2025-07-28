@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bishops Stortford Bins</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; }
+    label, input { display: block; margin: 0.5em 0; }
+    #result { margin-top: 1em; }
+  </style>
+</head>
+<body>
+  <h1>Bishops Stortford Bin Collection</h1>
+  <label>
+    Postcode:
+    <input id="postcode" type="text" placeholder="e.g. CM23 5AB" />
+  </label>
+  <label>
+    House Number:
+    <input id="housenumber" type="text" placeholder="e.g. 12" />
+  </label>
+  <button id="checkBtn">Check Bins</button>
+
+  <div id="result"></div>
+
+  <script>
+    async function fetchBinInfo(postcode, housenumber) {
+      try {
+        // Replace this with the actual API endpoint and parameters
+        const url = `https://api.east-herts.co.uk/bincollection?postcode=${encodeURIComponent(postcode)}&housenumber=${encodeURIComponent(housenumber)}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('API error');
+        const data = await response.json();
+
+        // Show the bin collection info (adjust according to actual API response)
+        let html = '<h2>Bin Collection Schedule</h2><ul>';
+        data.schedule.forEach(week => {
+          html += `<li>${week.week}: ${week.bins.join(', ')}</li>`;
+        });
+        html += '</ul>';
+        document.getElementById('result').innerHTML = html;
+      } catch (e) {
+        document.getElementById('result').textContent = 'Could not fetch bin information.';
+      }
+    }
+
+    document.getElementById('checkBtn').addEventListener('click', () => {
+      const postcode = document.getElementById('postcode').value.trim();
+      const housenumber = document.getElementById('housenumber').value.trim();
+      if (!postcode || !housenumber) {
+        alert('Please enter both postcode and house number.');
+        return;
+      }
+      fetchBinInfo(postcode, housenumber);
+    });
+  </script>
+</body>
+</html>
