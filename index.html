@@ -37,7 +37,7 @@
         background-color: #f0f8ff;
         text-align: center;
         font-size: 1rem;
-        color: grey;
+        color: #5b5858;
     }
 
     .callout-box p {
@@ -186,7 +186,7 @@
   <h1 class="title">
     Bishop's Stortford <span>New Bin Collection Lookup</span>
   </h1>
-  <p class="hint-text">Planned update on 7-8th August</br>by bin contractor Veolia in regards to collection times.</br></br>Please stick to the current day of the week you are familiar with for <u>Garden Waste collection</u> as this is inaccurate.</p>
+  <p class="hint-text">Planned update on 7-8th August</br>by bin contractor Veolia in regards to collection times.</p>
   <label for="postcode">Postcode</label>
   <input id="postcode" type="text" placeholder="e.g. CM23 5HE or CM235HE" />
 
@@ -257,76 +257,130 @@
     while (el.firstChild) el.removeChild(el.firstChild);
   }
 
-  function renderCollections(startDate, collections) {
-    clearChildren(resultsDiv);
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 (Sun) - 6 (Sat)
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+  return new Date(d.setDate(diff));
+}
 
-    const startWeek = getWeekIndex(startDate);
-    const today = new Date();
+function formatDate(date) {
+  return date.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long'
+  });
+}
 
-    for (let i = 0; i < 6; i++) {
-        const weekIndex = (startWeek + i) % binCycle.length;
-        const weekDate = new Date(startDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
 
-        const weekDiv = document.createElement('div');
-        weekDiv.classList.add('week');
 
-        const weekNumberDiv = document.createElement('div');
-        weekNumberDiv.classList.add('week-number');
 
-        // Label logic:
-        if (today < baselineDate) {
-          if (i === 0) {
-            weekNumberDiv.textContent = `Next Week (${formatDate(weekDate)}):`;
-          } else if (i === 1) {
-            weekNumberDiv.textContent = `Week 2 (${formatDate(weekDate)}):`;
-          } else {
-            weekNumberDiv.textContent = `Week ${i + 1} (${formatDate(weekDate)}):`;
-          }
-        } else {
-          if (i === 0) {
-            weekNumberDiv.textContent = `Current Week (${formatDate(weekDate)}):`;
-          } else if (i === 1) {
-            weekNumberDiv.textContent = `Next Week (${formatDate(weekDate)}):`;
-          } else {
-            weekNumberDiv.textContent = `Week ${i + 1} (${formatDate(weekDate)}):`;
-          }
+function renderCollections(startDate, collections) {
+  clearChildren(resultsDiv);
+
+  const today = new Date();
+
+  // Group collections by ISO week starting Monday
+  const groupedByWeek = {};
+  const baselineDate = new Date(startDate);
+
+  collections
+    .filter(col => new Date(col.collectionDate) >= baselineDate)
+    .forEach(col => {
+        const colDate = new Date(col.collectionDate);
+        const weekStart = new Date(colDate);
+        const day = colDate.getDay();
+        const diff = (day === 0 ? -6 : 1) - day; // shift so Monday is start
+        weekStart.setDate(colDate.getDate() + diff);
+        weekStart.setHours(0, 0, 0, 0);
+
+        const key = weekStart.toISOString();
+        if (!groupedByWeek[key]) {
+        groupedByWeek[key] = {
+            date: new Date(weekStart),
+            collections: []
+        };
         }
 
-        weekDiv.appendChild(weekNumberDiv);
+        groupedByWeek[key].collections.push(col);
+    });
 
-        // Container for bins under each week
-        const binsContainer = document.createElement('div');
-        binsContainer.classList.add('bins-container');
+  const sortedWeeks = Object.values(groupedByWeek).sort((a, b) => a.date - b.date);
 
-        binCycle[weekIndex].forEach(binType => {
-            const found = collections.find(c => c.binType.toLowerCase() === binType);
-            if (found) {
-                let material = '';
-                switch (binType) {
-                    case 'black': material = 'Mixed Recycling'; break;
-                    case 'blue': material = 'Paper/Cardboard'; break;
-                    case 'purple': material = 'Refuse/Non-Recycling'; break;
-                    case 'brown': material = 'Garden Waste'; break;
-                    case 'food': material = 'Food/Compost'; break;
-                    default: material = found.serviceName || binType; break;
-                }
-                const binLine = document.createElement('div');
-                binLine.textContent = `${binType.charAt(0).toUpperCase() + binType.slice(1)} (${material})`;
-                binLine.classList.add(binType.toLowerCase(), 'bin-label');
-                binsContainer.appendChild(binLine);
-            }
-        });
+  for (let i = 0; i < Math.min(6, sortedWeeks.length); i++) {
+    const week = sortedWeeks[i];
 
-        if (!binsContainer.hasChildNodes()) {
-            const noBins = document.createElement('div');
-            noBins.textContent = 'No collection';
-            binsContainer.appendChild(noBins);
-        }
+    const weekDiv = document.createElement('div');
+    weekDiv.classList.add('week');
 
-        weekDiv.appendChild(binsContainer);
-        resultsDiv.appendChild(weekDiv);
+    const weekNumberHeading = document.createElement('h3');
+    weekNumberHeading.classList.add('week-number');
+
+    const weekLabel = formatDate(week.date); // e.g., Monday 4 August
+    if (today < baselineDate) {
+      weekNumberHeading.textContent = i === 0
+        ? `Next Week`
+        : `Week ${i + 1}`;
+    } else {
+      weekNumberHeading.textContent = i === 0
+        ? `Current Week`
+        : `Week ${i + 1}`;
     }
+
+    weekDiv.appendChild(weekNumberHeading);
+
+    // Group that week's collections by actual day
+    const byDay = {};
+    week.collections.forEach(col => {
+      const colDate = new Date(col.collectionDate);
+      const key = colDate.toDateString();
+      if (!byDay[key]) {
+        byDay[key] = {
+          date: colDate,
+          bins: []
+        };
+      }
+      byDay[key].bins.push(col);
+    });
+
+    const sortedDays = Object.values(byDay).sort((a, b) => a.date - b.date);
+
+    sortedDays.forEach(dayGroup => {
+      const dayBox = document.createElement('div');
+      dayBox.classList.add('callout-box');
+
+      const dayHeading = document.createElement('h3');
+      const options = { weekday: 'long', day: 'numeric', month: 'long' };
+      dayHeading.textContent = `${dayGroup.date.toLocaleDateString(undefined, options)}`;
+      dayBox.appendChild(dayHeading);
+
+      dayGroup.bins.forEach(bin => {
+        let material = '';
+        switch (bin.binType.toLowerCase()) {
+          case 'black': material = 'Mixed Recycling'; break;
+          case 'blue': material = 'Paper/Cardboard'; break;
+          case 'purple': material = 'Refuse/Non-Recycling'; break;
+          case 'brown': material = 'Garden Waste'; break;
+          case 'food': material = 'Food/Compost'; break;
+          default: material = bin.serviceName || bin.binType; break;
+        }
+
+        const binLine = document.createElement('div');
+        binLine.textContent = `${bin.binType.charAt(0).toUpperCase() + bin.binType.slice(1)} (${material})`;
+        binLine.classList.add(bin.binType.toLowerCase(), 'bin-label');
+        dayBox.appendChild(binLine);
+      });
+
+      weekDiv.appendChild(dayBox);
+    });
+
+    resultsDiv.appendChild(weekDiv);
   }
+}
+
 
   async function fetchCollections(postcode, houseNumber) {
     const cacheKey = postcode + '|' + houseNumber;
@@ -365,7 +419,6 @@
     });
 
     const detailsData = await detailsResp.json();
-
     if (!detailsData.collections) {
       throw new Error('No collection data available for this address.');
     }
