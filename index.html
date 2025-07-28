@@ -203,6 +203,7 @@
     clearChildren(resultsDiv);
 
     const startWeek = getWeekIndex(startDate);
+    const today = new Date();
 
     for (let i = 0; i < 6; i++) {
         const weekIndex = (startWeek + i) % binCycle.length;
@@ -213,7 +214,26 @@
 
         const weekNumberDiv = document.createElement('div');
         weekNumberDiv.classList.add('week-number');
-        weekNumberDiv.textContent = `Week ${i + 1} (${formatDate(weekDate)}):`;
+
+        // Label logic:
+        if (today < baselineDate) {
+          if (i === 0) {
+            weekNumberDiv.textContent = `Next Week (${formatDate(weekDate)}):`;
+          } else if (i === 1) {
+            weekNumberDiv.textContent = `Current Week (${formatDate(weekDate)}):`;
+          } else {
+            weekNumberDiv.textContent = `Week ${i + 1} (${formatDate(weekDate)}):`;
+          }
+        } else {
+          if (i === 0) {
+            weekNumberDiv.textContent = `Current Week (${formatDate(weekDate)}):`;
+          } else if (i === 1) {
+            weekNumberDiv.textContent = `Next Week (${formatDate(weekDate)}):`;
+          } else {
+            weekNumberDiv.textContent = `Week ${i + 1} (${formatDate(weekDate)}):`;
+          }
+        }
+
         weekDiv.appendChild(weekNumberDiv);
 
         // Container for bins under each week
