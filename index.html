@@ -11,6 +11,7 @@
         font-weight: bold;
         display: inline-block;
         margin-bottom: 0.4em;
+        margin-right: 0.6em;       /* Added horizontal spacing */
         min-width: 160px;
         text-align: center;
     }
@@ -51,11 +52,13 @@
       padding: 0 1rem;
       background: #f9f9f9;
       color: #222;
+      text-align: center;  /* Center entire page content */
     }
-    label, input, button {
+    label {
       display: block;
-      margin: 0.5rem 0;
-      font-size: 1rem;
+      margin: 0.5rem auto 0.25rem;  /* Center label horizontally */
+      max-width: 400px;
+      text-align: left;
     }
     input#postcode,
     input#housenumber {
@@ -64,16 +67,22 @@
       box-sizing: border-box;
       font-size: 1rem;
       padding: 0.4rem 0.5rem;
+      margin: 0 auto 0.5rem;  /* Center inputs */
+      display: block;
     }
     button {
       padding: 0.5rem;
       font-size: 1rem;
       cursor: pointer;
       max-width: 400px;
+      width: 100%;
+      margin: 0.75rem auto 1rem;  /* Center button */
+      display: block;
     }
     #results p,
     #results ul {
       margin-top: 1rem;
+      text-align: left;  /* Align results text left for readability */
     }
 
     /* Week container */
@@ -102,12 +111,18 @@
     @media (max-width: 400px) {
       body {
         padding: 0 0.5rem;
+        text-align: left;  /* revert on small screens */
+      }
+      label {
+        max-width: 100%;
+        margin-left: 0;
       }
       input#postcode,
       input#housenumber,
       button {
         max-width: 100%;
         width: 100%;
+        margin-left: 0;
       }
       button {
         font-size: 1.1rem;
@@ -188,6 +203,7 @@
     clearChildren(resultsDiv);
 
     const startWeek = getWeekIndex(startDate);
+    const beforeBaseline = startDate < baselineDate;
 
     for (let i = 0; i < 6; i++) {
         const weekIndex = (startWeek + i) % binCycle.length;
@@ -198,7 +214,20 @@
 
         const weekNumberDiv = document.createElement('div');
         weekNumberDiv.classList.add('week-number');
-        weekNumberDiv.textContent = `Week ${i + 1} (${formatDate(weekDate)}):`;
+
+        // Determine week label text
+        let weekLabel;
+        if (beforeBaseline) {
+          // startDate before baseline
+          if (i === 0) weekLabel = 'Next Week';
+          else weekLabel = `Week ${i + 1}`;
+        } else {
+          // startDate on or after baseline
+          if (i === 0) weekLabel = 'Current Week';
+          else if (i === 1) weekLabel = 'Next Week';
+          else weekLabel = `Week ${i + 1}`;
+        }
+        weekNumberDiv.textContent = `${weekLabel} (${formatDate(weekDate)}):`;
         weekDiv.appendChild(weekNumberDiv);
 
         // Container for bins under each week
@@ -243,63 +272,55 @@
 
     const searchResp = await fetch(apiSearch, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postcode })
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({postcode})
     });
-
+    if (!searchResp.ok) {
+      throw new Error('Failed to search addresses');
+    }
     const searchData = await searchResp.json();
 
     if (!searchData.addresses || searchData.addresses.length === 0) {
-      throw new Error('No addresses found for that postcode.');
+      throw new Error('No addresses found');
     }
 
-    const address = searchData.addresses.find(a =>
-      a.address.toLowerCase().includes(houseNumber.toLowerCase())
-    );
-
-    if (!address) {
-      throw new Error('House number not found for that postcode.');
-    }
-
-    const detailsResp = await fetch(apiDetails, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        uprn: address.uprn,
-        address: address.address,
-        propertyType: address.propertyType
-      })
+    // Find matching house number
+    const foundAddress = searchData.addresses.find(addr => {
+      return addr.houseNumber === houseNumber;
     });
 
-    const detailsData = await detailsResp.json();
-
-    if (!detailsData.collections) {
-      throw new Error('No collection data available for this address.');
+    if (!foundAddress) {
+      throw new Error('House number not found');
     }
 
-    cache.set(cacheKey, detailsData.collections);
-    return detailsData.collections;
+    const detailsResp = await fetch(apiDetails + '?uprn=' + foundAddress.uprn);
+    if (!detailsResp.ok) {
+      throw new Error('Failed to fetch property details');
+    }
+    const detailsData = await detailsResp.json();
+
+    cache.set(cacheKey, detailsData);
+    return detailsData;
   }
 
   getCollectionsBtn.addEventListener('click', async () => {
-    resultsDiv.textContent = 'Loading...';
-    const rawPostcode = postcodeInput.value.trim();
-    const rawHouseNumber = houseNumberInput.value.trim();
-
-    if (!rawPostcode || !rawHouseNumber) {
-      resultsDiv.textContent = 'Please enter both postcode and house number.';
+    const postcodeRaw = postcodeInput.value.trim();
+    const houseNumberRaw = houseNumberInput.value.trim();
+    if (!postcodeRaw || !houseNumberRaw) {
+      alert('Please enter both postcode and house number');
       return;
     }
+    const postcode = normalizePostcode(postcodeRaw);
 
-    const postcode = normalizePostcode(rawPostcode);
+    resultsDiv.textContent = 'Loading...';
 
     try {
-      const collections = await fetchCollections(postcode, rawHouseNumber);
-      const today = new Date();
-      const startDate = today < baselineDate ? baselineDate : today;
-      renderCollections(startDate, collections);
-    } catch (error) {
-      resultsDiv.textContent = error.message || 'Error fetching data. Please try again later.';
+      const data = await fetchCollections(postcode, houseNumberRaw);
+      // Assume data.collections and data.startDate (ISO string)
+      const startDate = new Date(data.startDate);
+      renderCollections(startDate, data.collections);
+    } catch (err) {
+      resultsDiv.textContent = 'Error: ' + err.message;
     }
   });
 </script>
