@@ -1,57 +1,101 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Bishops Stortford Bins</title>
+  <meta charset="UTF-8">
+  <title>Stortford Bin Lookup</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 2em; }
-    label, input { display: block; margin: 0.5em 0; }
-    #result { margin-top: 1em; }
+    body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
+    label { display: block; margin-top: 1rem; }
+    #results { margin-top: 2rem; }
   </style>
 </head>
 <body>
-  <h1>Bishops Stortford Bin Collection</h1>
+  <h1>Stortford Bin Collection Lookup</h1>
+
   <label>
     Postcode:
-    <input id="postcode" type="text" placeholder="e.g. CM23 5AB" />
+    <input type="text" id="postcode" placeholder="e.g. CM23 5HE">
   </label>
+
   <label>
     House Number:
-    <input id="housenumber" type="text" placeholder="e.g. 12" />
+    <input type="text" id="houseNumber" placeholder="e.g. 41">
   </label>
-  <button id="checkBtn">Check Bins</button>
 
-  <div id="result"></div>
+  <button id="lookupBtn">Check My Collection Dates</button>
+
+  <div id="results"></div>
 
   <script>
-    async function fetchBinInfo(postcode, housenumber) {
-      try {
-        // Replace this with the actual API endpoint and parameters
-        const url = `https://api.east-herts.co.uk/bincollection?postcode=${encodeURIComponent(postcode)}&housenumber=${encodeURIComponent(housenumber)}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('API error');
-        const data = await response.json();
-
-        // Show the bin collection info (adjust according to actual API response)
-        let html = '<h2>Bin Collection Schedule</h2><ul>';
-        data.schedule.forEach(week => {
-          html += `<li>${week.week}: ${week.bins.join(', ')}</li>`;
-        });
-        html += '</ul>';
-        document.getElementById('result').innerHTML = html;
-      } catch (e) {
-        document.getElementById('result').textContent = 'Could not fetch bin information.';
-      }
+    function normalizePostcode(input) {
+        const cleaned = input.replace(/\s+/g, '').toUpperCase();
+        if (cleaned.length < 5 || cleaned.length > 7) return cleaned; // fallback
+        return `${cleaned.slice(0, -3)} ${cleaned.slice(-3)}`;
     }
 
-    document.getElementById('checkBtn').addEventListener('click', () => {
-      const postcode = document.getElementById('postcode').value.trim();
-      const housenumber = document.getElementById('housenumber').value.trim();
-      if (!postcode || !housenumber) {
-        alert('Please enter both postcode and house number.');
-        return;
+    document.getElementById('lookupBtn').addEventListener('click', async () => {
+      const rawPostcode = document.getElementById('postcode').value.trim();
+      const postcode = normalizePostcode(rawPostcode);
+
+      const houseNumber = document.getElementById('houseNumber').value.trim();
+      const resultsEl = document.getElementById('results');
+
+      resultsEl.innerHTML = '<p>Loading...</p>';
+
+      try {
+        // Step 1: Lookup addresses by postcode
+        const addressRes = await fetch('api/search-addresses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ postcode })
+        });
+
+        const { addresses } = await addressRes.json();
+
+        if (!addresses || addresses.length === 0) {
+          resultsEl.innerHTML = '<p>No addresses found for this postcode.</p>';
+          return;
+        }
+
+        // Step 2: Find the one matching the house number
+        const target = addresses.find(a => a.address.includes(`${houseNumber} `));
+        if (!target) {
+          resultsEl.innerHTML = '<p>Could not find that house number in the list of addresses.</p>';
+          return;
+        }
+
+        // Step 3: Fetch bin collection info
+        const detailsRes = await fetch('api/property-details', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uprn: target.uprn,
+            address: target.address,
+            propertyType: target.propertyType
+          })
+        });
+
+        const details = await detailsRes.json();
+        const collections = details.collections || [];
+
+        // Step 4: Render
+        if (collections.length === 0) {
+          resultsEl.innerHTML = '<p>No collection data found for this address.</p>';
+          return;
+        }
+
+        resultsEl.innerHTML = `
+          <h2>Bin Collections for ${target.address}</h2>
+          <ul>
+            ${collections.map(c => `
+              <li><strong>${c.serviceName}</strong> – ${new Date(c.collectionDate).toLocaleDateString()} (Bin: ${c.binType})</li>
+            `).join('')}
+          </ul>
+        `;
+      } catch (error) {
+        console.error(error);
+        resultsEl.innerHTML = '<p>Something went wrong. Please try again.</p>';
       }
-      fetchBinInfo(postcode, housenumber);
     });
   </script>
 </body>
