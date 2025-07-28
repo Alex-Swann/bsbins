@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bishop's Stortford New Bin Collection Lookup</title>
   <style>
-    .bin-label {
+   .bin-label {
         padding: 0.3em 0.6em;
         border-radius: 0.5em;
         font-weight: bold;
@@ -203,7 +203,6 @@
     clearChildren(resultsDiv);
 
     const startWeek = getWeekIndex(startDate);
-    const beforeBaseline = startDate < baselineDate;
 
     for (let i = 0; i < 6; i++) {
         const weekIndex = (startWeek + i) % binCycle.length;
@@ -214,20 +213,7 @@
 
         const weekNumberDiv = document.createElement('div');
         weekNumberDiv.classList.add('week-number');
-
-        // Determine week label text
-        let weekLabel;
-        if (beforeBaseline) {
-          // startDate before baseline
-          if (i === 0) weekLabel = 'Next Week';
-          else weekLabel = `Week ${i + 1}`;
-        } else {
-          // startDate on or after baseline
-          if (i === 0) weekLabel = 'Current Week';
-          else if (i === 1) weekLabel = 'Next Week';
-          else weekLabel = `Week ${i + 1}`;
-        }
-        weekNumberDiv.textContent = `${weekLabel} (${formatDate(weekDate)}):`;
+        weekNumberDiv.textContent = `Week ${i + 1} (${formatDate(weekDate)}):`;
         weekDiv.appendChild(weekNumberDiv);
 
         // Container for bins under each week
@@ -272,55 +258,63 @@
 
     const searchResp = await fetch(apiSearch, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({postcode})
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postcode })
     });
-    if (!searchResp.ok) {
-      throw new Error('Failed to search addresses');
-    }
+
     const searchData = await searchResp.json();
 
     if (!searchData.addresses || searchData.addresses.length === 0) {
-      throw new Error('No addresses found');
+      throw new Error('No addresses found for that postcode.');
     }
 
-    // Find matching house number
-    const foundAddress = searchData.addresses.find(addr =>
-    addr.address.toLowerCase().includes(houseNumber.toLowerCase())
+    const address = searchData.addresses.find(a =>
+      a.address.toLowerCase().includes(houseNumber.toLowerCase())
     );
 
-    if (!foundAddress) {
-      throw new Error('House number not found');
+    if (!address) {
+      throw new Error('House number not found for that postcode.');
     }
 
-    const detailsResp = await fetch(apiDetails + '?uprn=' + foundAddress.uprn);
-    if (!detailsResp.ok) {
-      throw new Error('Failed to fetch property details');
-    }
+    const detailsResp = await fetch(apiDetails, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uprn: address.uprn,
+        address: address.address,
+        propertyType: address.propertyType
+      })
+    });
+
     const detailsData = await detailsResp.json();
 
-    cache.set(cacheKey, detailsData);
-    return detailsData;
+    if (!detailsData.collections) {
+      throw new Error('No collection data available for this address.');
+    }
+
+    cache.set(cacheKey, detailsData.collections);
+    return detailsData.collections;
   }
 
   getCollectionsBtn.addEventListener('click', async () => {
-    const postcodeRaw = postcodeInput.value.trim();
-    const houseNumberRaw = houseNumberInput.value.trim();
-    if (!postcodeRaw || !houseNumberRaw) {
-      alert('Please enter both postcode and house number');
+    resultsDiv.textContent = 'Loading...';
+    const rawPostcode = postcodeInput.value.trim();
+    const rawHouseNumber = houseNumberInput.value.trim();
+
+    if (!rawPostcode || !rawHouseNumber) {
+      resultsDiv.textContent = 'Please enter both postcode and house number.';
       return;
     }
-    const postcode = normalizePostcode(postcodeRaw);
 
-    resultsDiv.textContent = 'Loading...';
+    const postcode = normalizePostcode(rawPostcode);
 
     try {
-      const data = await fetchCollections(postcode, houseNumberRaw);
-      // Assume data.collections and data.startDate (ISO string)
-      const startDate = new Date(data.startDate);
-      renderCollections(startDate, data.collections);
-    } catch (err) {
-      resultsDiv.textContent = 'Error: ' + err.message;
+      const collections = await fetchCollections(postcode, rawHouseNumber);
+      const today = new Date();
+      const startDate = today < baselineDate ? baselineDate : today;
+      renderCollections(startDate, collections);
+    } catch (error) {
+      resultsDiv.textContent = error.message || 'Error fetching data. Please try again later.';
     }
   });
 </script>
