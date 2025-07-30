@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="1080dp"
+    android:height="150dp"
+    android:viewportWidth="1080"
+    android:viewportHeight="150">
+
+    <!-- Semi-transparent rectangle background -->
+    <path
+        android:fillColor="#AAAAAAAA"
+        android:pathData="M0,0h1080v150h-1080z"/>
+</vector>

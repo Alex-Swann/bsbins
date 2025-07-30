@@ -1,0 +1,14 @@
+<!-- home_banner.svg -->
+<svg width="1080" height="250" viewBox="0 0 1080 250" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background: semi-transparent dark overlay on #F9F9F9 -->
+  <rect width="1080" height="250" fill="#F9F9F9"/>
+  <rect width="1080" height="250" fill="rgba(0,0,0,0.35)"/>
+
+  <!-- Simple home icon on left -->
+  <path d="M80 150 L140 100 L200 150 L200 200 L140 200 L140 160 L80 160 Z" fill="white" />
+
+  <!-- Text "Home" -->
+  <text x="230" y="170" fill="white" font-family="Arial, sans-serif" font-size="100" font-weight="bold">
+    Home
+  </text>
+</svg>
