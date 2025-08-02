@@ -10,16 +10,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const apiRes = await fetch('https://api.east-herts.co.uk/api/search-addresses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postcode }),
-    });
+    const apiRes = await fetch(`https://east-herts.co.uk/api/addresses/${postcode}`);
     if (!apiRes.ok) {
       const text = await apiRes.text();
       throw new Error(`API Error: ${apiRes.status} ${text}`);
     }
     const data = await apiRes.json();
+
     res.status(200).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unknown error' });

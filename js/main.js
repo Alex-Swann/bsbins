@@ -209,9 +209,8 @@ const detailsResp = await fetch(apiDetails, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-    uprn: address.uprn,
-    address: address.address,
-    propertyType: address.propertyType
+        uprn: address.uprn,
+        address: address.address
     })
 });
 

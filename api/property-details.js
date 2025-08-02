@@ -60,9 +60,9 @@ export default async function handler(req, res) {
         return "unknown";
     }
 
-  const { uprn, address, propertyType } = req.body;
-  if (!uprn || !address || !propertyType) {
-    res.status(400).json({ error: 'uprn, address, and propertyType are required' });
+  const { uprn, address } = req.body;
+  if (!uprn || !address) {
+    res.status(400).json({ error: 'uprn and address are required' });
     return;
   }
 
