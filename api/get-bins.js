@@ -1,42 +1,38 @@
-import chromium from 'chrome-aws-lambda';
+import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
 
 const SEARCH_PAGE_URL =
   'https://eastherts-self.achieveservice.com/AchieveForms/?mode=fill&consentMessage=yes&form_uri=sandbox-publish://AF-Process-98782935-6101-4962-9a55-5923e76057b6/AF-Stage-dcd0ec18-dfb4-496a-a266-bd8fadaa28a7/definition.json&process=1&process_uri=sandbox-processes://AF-Process-98782935-6101-4962-9a55-5923e76057b6&process_id=AF-Process-98782935-6101-4962-9a55-5923e76057b6';
 
-async function getBrowser() {
+export async function getBrowser() {
   let executablePath;
+  let launchArgs = [];
+  let headless = true;
 
   if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
-    executablePath = await chromium.executablePath;
+    // Serverless environment
+    executablePath = await chromium.executablePath();
+    launchArgs = [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'];
+    headless = chromium.headless;
 
-    // If chrome-aws-lambda binary not found, fallback to puppeteer-core bundled Chromium
     if (!executablePath) {
-      console.warn('Chrome executable not found via chrome-aws-lambda, using puppeteer-core fallback');
-      const puppeteerPkg = (await import('puppeteer-core')).default;
-      return puppeteerPkg.launch({
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        headless: true,
-        ignoreHTTPSErrors: true,
-      });
+      throw new Error('Chromium not found in serverless environment.');
     }
-
-    return puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath,
-      headless: chromium.headless,
-      ignoreHTTPSErrors: true,
-    });
   } else {
+    // Local dev (vercel dev)
     const puppeteerPkg = await import('puppeteer');
     executablePath = puppeteerPkg.executablePath();
-    return puppeteer.launch({
-      headless: true,
-      executablePath,
-      ignoreHTTPSErrors: true,
-    });
+    launchArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+    headless = true;
   }
+
+  return puppeteer.launch({
+    args: launchArgs,
+    defaultViewport: { width: 1280, height: 800 },
+    executablePath,
+    headless,
+    ignoreHTTPSErrors: true,
+  });
 }
 
 async function scrapeAddressAndBinDetails(postcode, houseNumber) {

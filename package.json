@@ -4,18 +4,18 @@
   "description": "Test test test",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "npx puppeteer install chromium"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@vercel/analytics": "^1.5.0",
+    "@sparticuz/chromium": "^126.0.0",
     "cheerio": "^1.1.2",
-    "chrome-aws-lambda": "^1.20.1",
     "node-fetch": "^2.7.0",
-    "puppeteer": "^24.15.0"
+    "puppeteer": "^24.17.0",
+    "puppeteer-core": "^24.17.0"
   },
   "engines": {
     "node": "20.18.1"

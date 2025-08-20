@@ -1,4 +1,4 @@
-import chromium from 'chrome-aws-lambda';
+import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
 
 const PAGE_URL =
@@ -7,39 +7,35 @@ const PAGE_URL =
 const FALLBACK_SITE_ID = '69b21282-369d-4d98-ab6d-0bc3591213b4';
 const OLD_ACCESS_TOKEN = 'ZnlyviS9DcLiTnTUoJCLTgryTr1buC1KtAwYSX32f64A0RM5';
 
-async function getBrowser() {
+export async function getBrowser() {
   let executablePath;
+  let launchArgs = [];
+  let headless = true;
 
   if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
-    executablePath = await chromium.executablePath;
+    // Serverless environment
+    executablePath = await chromium.executablePath();
+    launchArgs = [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'];
+    headless = chromium.headless;
 
-    // If chrome-aws-lambda binary not found, fallback to puppeteer-core bundled Chromium
     if (!executablePath) {
-      console.warn('Chrome executable not found via chrome-aws-lambda, using puppeteer-core fallback');
-      const puppeteerPkg = (await import('puppeteer-core')).default;
-      return puppeteerPkg.launch({
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        headless: true,
-        ignoreHTTPSErrors: true,
-      });
+      throw new Error('Chromium not found in serverless environment.');
     }
-
-    return puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath,
-      headless: chromium.headless,
-      ignoreHTTPSErrors: true,
-    });
   } else {
+    // Local dev (vercel dev)
     const puppeteerPkg = await import('puppeteer');
     executablePath = puppeteerPkg.executablePath();
-    return puppeteer.launch({
-      headless: true,
-      executablePath,
-      ignoreHTTPSErrors: true,
-    });
+    launchArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+    headless = true;
   }
+
+  return puppeteer.launch({
+    args: launchArgs,
+    defaultViewport: { width: 1280, height: 800 },
+    executablePath,
+    headless,
+    ignoreHTTPSErrors: true,
+  });
 }
 
 async function getBinStatusViaPage() {
