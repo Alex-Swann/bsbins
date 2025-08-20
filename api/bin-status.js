@@ -8,22 +8,24 @@ const FALLBACK_SITE_ID = '69b21282-369d-4d98-ab6d-0bc3591213b4';
 const OLD_ACCESS_TOKEN = 'ZnlyviS9DcLiTnTUoJCLTgryTr1buC1KtAwYSX32f64A0RM5';
 
 async function getBrowser() {
-  let executablePath;
-
   if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
-    executablePath = await chromium.executablePath;
-    if (!executablePath) throw new Error('Chrome executable not found on remote server!');
-    return puppeteer.launch({
+    // Use chrome-aws-lambda for serverless
+    const executablePath = await chromium.executablePath;
+    if (!executablePath) {
+      console.warn('Chrome executable not found, using fallback chromium from package');
+    }
+    return chromium.puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath,
+      executablePath: executablePath || undefined, // fallback to puppeteer bundled if missing
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
   } else {
+    // Local dev
     const puppeteerPkg = await import('puppeteer');
-    executablePath = puppeteerPkg.executablePath();
-    return puppeteer.launch({
+    const executablePath = puppeteerPkg.executablePath();
+    return puppeteerPkg.launch({
       headless: true,
       executablePath,
       ignoreHTTPSErrors: true,

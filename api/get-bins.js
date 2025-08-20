@@ -5,22 +5,24 @@ const SEARCH_PAGE_URL =
   'https://eastherts-self.achieveservice.com/AchieveForms/?mode=fill&consentMessage=yes&form_uri=sandbox-publish://AF-Process-98782935-6101-4962-9a55-5923e76057b6/AF-Stage-dcd0ec18-dfb4-496a-a266-bd8fadaa28a7/definition.json&process=1&process_uri=sandbox-processes://AF-Process-98782935-6101-4962-9a55-5923e76057b6&process_id=AF-Process-98782935-6101-4962-9a55-5923e76057b6';
 
 async function getBrowser() {
-  let executablePath;
-
   if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
-    executablePath = await chromium.executablePath;
-    if (!executablePath) throw new Error('Chrome executable not found on remote server!');
-    return puppeteer.launch({
+    // Use chrome-aws-lambda for serverless
+    const executablePath = await chromium.executablePath;
+    if (!executablePath) {
+      console.warn('Chrome executable not found, using fallback chromium from package');
+    }
+    return chromium.puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath,
+      executablePath: executablePath || undefined, // fallback to puppeteer bundled if missing
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
   } else {
+    // Local dev
     const puppeteerPkg = await import('puppeteer');
-    executablePath = puppeteerPkg.executablePath();
-    return puppeteer.launch({
+    const executablePath = puppeteerPkg.executablePath();
+    return puppeteerPkg.launch({
       headless: true,
       executablePath,
       ignoreHTTPSErrors: true,
