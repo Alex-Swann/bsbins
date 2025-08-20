@@ -8,32 +8,34 @@ const FALLBACK_SITE_ID = '69b21282-369d-4d98-ab6d-0bc3591213b4';
 const OLD_ACCESS_TOKEN = 'ZnlyviS9DcLiTnTUoJCLTgryTr1buC1KtAwYSX32f64A0RM5';
 
 export async function getBrowser() {
-  let executablePath;
+  const isServerless = process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL;
+  let executablePath = undefined;
   let launchArgs = [];
   let headless = true;
+  let defaultViewport = { width: 1280, height: 800 };
 
-  if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
-    // Serverless environment
-    executablePath = await chromium.executablePath();
+  if (isServerless) {
+    // Use chrome-aws-lambda / sparticuz-chromium for serverless
+    executablePath = await chromium.executablePath;
     launchArgs = [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'];
     headless = chromium.headless;
+    defaultViewport = chromium.defaultViewport;
 
     if (!executablePath) {
       throw new Error('Chromium not found in serverless environment.');
     }
   } else {
-    // Local dev (vercel dev)
+    // Local development
     const puppeteerPkg = await import('puppeteer');
     executablePath = puppeteerPkg.executablePath();
-    launchArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
-    headless = true;
+    launchArgs = ['--no-sandbox', '--disable-setuid-sandbox']; // optional locally
   }
 
   return puppeteer.launch({
-    args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
-    defaultViewport: chromium.defaultViewport,
+    args: launchArgs,
+    defaultViewport,
     executablePath,
-    headless: chromium.headless,
+    headless,
     ignoreHTTPSErrors: true,
   });
 }
