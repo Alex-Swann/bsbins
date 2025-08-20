@@ -13,7 +13,7 @@ async function getBrowser() {
     // If chrome-aws-lambda binary not found, fallback to puppeteer-core bundled Chromium
     if (!executablePath) {
       console.warn('Chrome executable not found via chrome-aws-lambda, using puppeteer-core fallback');
-      const puppeteerPkg = await import('puppeteer-core');
+      const puppeteerPkg = (await import('puppeteer-core')).default;
       return puppeteerPkg.launch({
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
         headless: true,
