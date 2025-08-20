@@ -1,39 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Bishop's Stortford New Bin Collection Lookup</title>
-    <link rel="stylesheet" href="css/style.css" />
-    <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16x16.png">
-    <link rel="manifest" href="/site.webmanifest">
-    </head>
-    <body>
-    <h1 class="title">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bishop's Stortford New Bin Collection Lookup</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
+</head>
+<body>
+  <div class="page-wrapper">
+
+    <!-- Main interactive content -->
+    <main class="main-content">
+      <h1 class="title">
         Bishop's Stortford <span>New Bin Collection Lookup</span>
-    </h1>
-    <p class="hint-text">Planned update on 7-8th August</br>by bin contractor Veolia in regards to collection times.</p>
-    <label for="postcode">Postcode</label>
-    <input id="postcode" type="text" placeholder="e.g. CM23 5HE or CM235HE" />
+      </h1>
 
-    <label for="housenumber">House Number</label>
-    <input id="housenumber" type="text" placeholder="e.g. 41" />
+      <p class="hint-text">Planned update on 7–8th August<br>by bin contractor Veolia in regards to collection times.</p>
 
-    <button id="getCollections">Get Bin Collections</button>
+      <div class="form-wrapper">
+        <label for="postcode">Postcode</label>
+        <input id="postcode" type="text" placeholder="e.g. CM23 5HE or CM235HE" />
 
-    <div id="results"></div>
-        <div class="callout-box">
-        <p>
-            If there are any issues with this service, as it is free and casually managed,
-            please refer to the following link:
-        </p>
+        <label for="housenumber">House Number</label>
+        <input id="housenumber" type="text" placeholder="e.g. 41" />
+
+        <button id="getCollections">Get Bin Collections</button>
+      </div>
+
+
+      <div id="results"></div>
+
+      <div class="callout-box">
+        <p>If there are any issues with this service, as it is free and casually managed, please refer to the following link:</p>
         <a href="https://www.eastherts.gov.uk/bins-waste-and-recycling/find-your-bin-collection-day" target="_blank" rel="noopener noreferrer">
-            East Herts Council Bin Collection Information
+          East Herts Council Bin Collection Information
         </a>
-        </div>
-        <script src="js/main.js"></script>
-        <footer><p><a href="privacy.html">Privacy Policy</a></p></footer>
-    </body>
+      </div>
+    </main>
+  </div>
+
+      <!-- Sidebar bin status -->
+    <aside class="bin-status-wrapper">
+      <section aria-labelledby="bin-status-heading" class="bin-status-widget">
+        <h2 id="bin-status-heading">Stortford Recycling Centre Bins Status</h2>
+    <p>
+        <a href="https://www.hertfordshire.gov.uk/services/recycling-waste-and-environment/recycling-and-waste/where-can-i-recycle/household-waste-recycling-centres/bishops-stortford-household-waste-recycling-centre.aspx#openingtimes">
+          Recycling Centre Information
+        </a>
+      </p>
+        <p id="service-message" class="status-message" aria-live="polite"></p>
+        <ul class="status-list" id="bin-status-list"></ul>
+        <p id="last-updated" class="updated-time"></p>
+      </section>
+    </aside>
+
+  <script src="js/main.js"></script>
+  <footer>
+    <p><a href="privacy.html">Privacy Policy</a></p>
+  </footer>
+</body>
 </html>
