@@ -6,15 +6,15 @@ const SEARCH_PAGE_URL =
 
 async function getBrowser() {
   if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
-    // Use chrome-aws-lambda for serverless
+    // Serverless: use chrome-aws-lambda with puppeteer-core
     const executablePath = await chromium.executablePath;
     if (!executablePath) {
-      console.warn('Chrome executable not found, using fallback chromium from package');
+      throw new Error('Chrome executable not found on serverless environment!');
     }
-    return chromium.puppeteer.launch({
+    return puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: executablePath || undefined, // fallback to puppeteer bundled if missing
+      executablePath,
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
