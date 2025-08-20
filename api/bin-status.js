@@ -11,11 +11,19 @@ async function getBrowser() {
   let executablePath;
 
   if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
-    // Serverless: use chrome-aws-lambda with puppeteer-core
     executablePath = await chromium.executablePath;
+
+    // If chrome-aws-lambda binary not found, fallback to puppeteer-core bundled Chromium
     if (!executablePath) {
-      throw new Error('Chrome executable not found on serverless environment!');
+      console.warn('Chrome executable not found via chrome-aws-lambda, using puppeteer-core fallback');
+      const puppeteerPkg = await import('puppeteer-core');
+      return puppeteerPkg.launch({
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        headless: true,
+        ignoreHTTPSErrors: true,
+      });
     }
+
     return puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
