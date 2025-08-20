@@ -7,22 +7,25 @@ const SEARCH_PAGE_URL =
 async function getBrowser() {
   let executablePath;
 
-  if (process.env.VERCEL) {
+  if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
     executablePath = await chromium.executablePath;
+    if (!executablePath) throw new Error('Chrome executable not found on remote server!');
+    return puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath,
+      headless: chromium.headless,
+      ignoreHTTPSErrors: true,
+    });
   } else {
     const puppeteerPkg = await import('puppeteer');
     executablePath = puppeteerPkg.executablePath();
+    return puppeteer.launch({
+      headless: true,
+      executablePath,
+      ignoreHTTPSErrors: true,
+    });
   }
-
-  return puppeteer.launch({
-    args: process.env.VERCEL
-      ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox']
-      : [],
-    defaultViewport: chromium.defaultViewport,
-    executablePath,
-    headless: true,
-    ignoreHTTPSErrors: true,
-  });
 }
 
 async function scrapeAddressAndBinDetails(postcode, houseNumber) {
