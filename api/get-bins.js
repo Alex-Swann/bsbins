@@ -5,22 +5,23 @@ const SEARCH_PAGE_URL =
   'https://eastherts-self.achieveservice.com/AchieveForms/?mode=fill&consentMessage=yes&form_uri=sandbox-publish://AF-Process-98782935-6101-4962-9a55-5923e76057b6/AF-Stage-dcd0ec18-dfb4-496a-a266-bd8fadaa28a7/definition.json&process=1&process_uri=sandbox-processes://AF-Process-98782935-6101-4962-9a55-5923e76057b6&process_id=AF-Process-98782935-6101-4962-9a55-5923e76057b6';
 
 async function getBrowser() {
-  let executablePath = await chromium.executablePath;
+  let executablePath;
 
-  if (!executablePath) {
-    // Local dev fallback
+  if (process.env.VERCEL) {
+    executablePath = await chromium.executablePath;
+  } else {
     const puppeteerPkg = await import('puppeteer');
     executablePath = puppeteerPkg.executablePath();
   }
 
   return puppeteer.launch({
-    args: chromium.args,
+    args: process.env.VERCEL
+      ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox']
+      : [],
     defaultViewport: chromium.defaultViewport,
     executablePath,
     headless: true,
     ignoreHTTPSErrors: true,
-    // Required in serverless to prevent sandbox issues
-    ...(process.env.VERCEL ? { args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'] } : {}),
   });
 }
 
@@ -30,29 +31,25 @@ async function scrapeAddressAndBinDetails(postcode, houseNumber) {
 
   try {
     await page.goto(SEARCH_PAGE_URL, { waitUntil: 'networkidle2' });
+    await page.waitForSelector('iframe');
 
-    // Wait for the iframe and get its content
-    const iframeElement = await page.waitForSelector('iframe', { timeout: 10000 });
-    const frame = await iframeElement.contentFrame();
-    if (!frame) throw new Error('Could not access iframe content');
+    const iframeElement = await page.$('iframe');
+    const frame = await iframeElement?.contentFrame();
+    if (!frame) throw new Error('Could not get iframe content');
 
-    // Fill postcode and submit
-    const postcodeInput = await frame.waitForSelector('input[name="postcode_search"]', { timeout: 10000 });
+    await frame.waitForSelector('input[name="postcode_search"]', { timeout: 10000 });
+    const postcodeInput = await frame.$('input[name="postcode_search"]');
     await postcodeInput.click({ clickCount: 3 });
     await postcodeInput.type(postcode);
     await postcodeInput.press('Enter');
 
-    // Wait for address dropdown
     await frame.waitForSelector('select[name="listSelectAddress"]', { timeout: 10000 });
     await frame.evaluate(() => new Promise(resolve => setTimeout(resolve, 1500)));
 
-    // Extract address options and match house number
     const addressOptions = await frame.$$eval(
       'select[name="listSelectAddress"] option',
       opts => opts.map(opt => ({ value: opt.value, text: opt.textContent.trim() }))
     );
-
-    if (addressOptions.length <= 1) throw new Error('No addresses found for this postcode');
 
     const houseNumberStr = String(houseNumber).trim().toLowerCase();
     const matchingOption = addressOptions.find(opt => opt.text.toLowerCase().includes(houseNumberStr));
@@ -60,19 +57,13 @@ async function scrapeAddressAndBinDetails(postcode, houseNumber) {
 
     await frame.select('select[name="listSelectAddress"]', matchingOption.value);
 
-    // Wait for bin collection input to populate
     await frame.waitForFunction(() => {
       const recyclingDateInput = document.querySelector('input[name="RecyclingNextDate"]');
       return recyclingDateInput && recyclingDateInput.value.trim().length > 0;
     }, { timeout: 15000 });
 
-    // Extract all necessary data
     const result = await frame.evaluate(() => {
-      const getVal = name => document.querySelector(`input[name="${name}"]`)?.value || null;
-      const uprn = getVal('uprn');
-      const addressSelect = document.querySelector('select[name="listSelectAddress"]');
-      const selectedAddressText = addressSelect ? addressSelect.options[addressSelect.selectedIndex].text : null;
-
+      const getVal = (name) => document.querySelector(`input[name="${name}"]`)?.value || null;
       const services = [];
       const binTypes = ['Recycling', 'Refuse', 'Paper', 'Food', 'GW'];
       const serviceNames = {
@@ -91,34 +82,22 @@ async function scrapeAddressAndBinDetails(postcode, houseNumber) {
 
         services.push({
           id: `puppeteer-${type}-${i}`,
-          uprn: uprn || null,
           binType: binTypeNormalized,
           collectionDate: new Date(collectionDateStr).toISOString(),
-          completed: false,
-          roundId: null,
-          serviceStatus: 'Active',
-          issueCode: null,
-          serviceId: null,
           serviceName,
-          lastModified: new Date().toISOString(),
+          serviceStatus: 'Active',
         });
       });
+
+      const uprn = getVal('uprn');
+      const addressSelect = document.querySelector('select[name="listSelectAddress"]');
+      const selectedAddressText = addressSelect?.options[addressSelect.selectedIndex].text || null;
 
       return {
         uprn,
         address: selectedAddressText,
         postcode: getVal('postcode_search') || null,
         collections: services,
-        rounds: [],
-        environmentalIncidents: [],
-        subscriptions: {
-          subscriptions: [],
-          gardenWasteSubscriptions: services.some(s => s.binType === 'garden') ? 1 : 0,
-          gardenWasteActive: services.some(s => s.binType === 'garden'),
-        },
-        communalProperty: false,
-        sackProperty: false,
-        propertyType: 'individual',
       };
     });
 
@@ -129,9 +108,7 @@ async function scrapeAddressAndBinDetails(postcode, houseNumber) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { postcode, houseNumber } = req.body;
   if (!postcode) return res.status(400).json({ error: 'postcode required' });
@@ -139,7 +116,7 @@ export default async function handler(req, res) {
 
   try {
     const data = await scrapeAddressAndBinDetails(postcode, houseNumber);
-    if (!data || !data.collections?.length) return res.status(404).json({ error: 'No bin collection data found' });
+    if (!data?.collections?.length) return res.status(404).json({ error: 'No bin collection data found' });
 
     res.status(200).json(data);
   } catch (err) {
