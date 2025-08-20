@@ -30,10 +30,10 @@ export async function getBrowser() {
   }
 
   return puppeteer.launch({
-    args: launchArgs,
-    defaultViewport: { width: 1280, height: 800 },
+    args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
+    defaultViewport: chromium.defaultViewport,
     executablePath,
-    headless,
+    headless: chromium.headless,
     ignoreHTTPSErrors: true,
   });
 }
