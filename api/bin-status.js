@@ -10,7 +10,7 @@ async function getBrowser() {
   let executablePath = await chromium.executablePath;
 
   if (!executablePath) {
-    // fallback for local dev
+    // Local dev fallback
     const puppeteerPkg = await import('puppeteer');
     executablePath = puppeteerPkg.executablePath();
   }
@@ -20,6 +20,9 @@ async function getBrowser() {
     defaultViewport: chromium.defaultViewport,
     executablePath,
     headless: true,
+    ignoreHTTPSErrors: true,
+    // Avoid sandbox issues in serverless
+    ...(process.env.VERCEL ? { args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'] } : {}),
   });
 }
 
@@ -33,20 +36,18 @@ async function getBinStatusViaPage() {
   try {
     await page.waitForSelector('#ccc-recommended-settings', { timeout: 3000 });
     await page.click('#ccc-recommended-settings');
-    // wait a moment for the popup to disappear
     await page.waitForTimeout(1000);
   } catch {
-    // No popup or already accepted - continue
+    // No popup - continue
   }
 
   // Get siteID from page or fallback
   const siteID = await page.$eval('#HWRCID', el => el.dataset.value).catch(() => FALLBACK_SITE_ID);
 
-  // Call the Contensis client inside page context to get bin status
+  // Call the Contensis client inside page context
   const binStatus = await page.evaluate(async (siteID, oldToken) => {
-    if (!window.Zengenti?.Contensis?.Client) {
-      return null;
-    }
+    if (!window.Zengenti?.Contensis?.Client) return null;
+
     const accessToken = window.Zengenti.Contensis.Client._config?.accessToken || oldToken;
 
     const client = window.Zengenti.Contensis.Client.create({
@@ -61,7 +62,7 @@ async function getBinStatusViaPage() {
     try {
       const data = await client.entries.get(siteID);
       return data;
-    } catch (e) {
+    } catch {
       return null;
     }
   }, siteID, OLD_ACCESS_TOKEN);

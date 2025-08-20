@@ -6,15 +6,21 @@ const SEARCH_PAGE_URL =
 
 async function getBrowser() {
   let executablePath = await chromium.executablePath;
+
   if (!executablePath) {
+    // Local dev fallback
     const puppeteerPkg = await import('puppeteer');
     executablePath = puppeteerPkg.executablePath();
   }
+
   return puppeteer.launch({
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
     executablePath,
     headless: true,
+    ignoreHTTPSErrors: true,
+    // Required in serverless to prevent sandbox issues
+    ...(process.env.VERCEL ? { args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'] } : {}),
   });
 }
 
@@ -25,78 +31,49 @@ async function scrapeAddressAndBinDetails(postcode, houseNumber) {
   try {
     await page.goto(SEARCH_PAGE_URL, { waitUntil: 'networkidle2' });
 
-    // Wait for the iframe to appear on the page
-    await page.waitForSelector('iframe');
-
-    // Get the iframe element handle and then the frame object
-    const iframeElement = await page.$('iframe');
-    if (!iframeElement) throw new Error('iframe not found on page');
-
+    // Wait for the iframe and get its content
+    const iframeElement = await page.waitForSelector('iframe', { timeout: 10000 });
     const frame = await iframeElement.contentFrame();
-    if (!frame) throw new Error('Could not get iframe content');
+    if (!frame) throw new Error('Could not access iframe content');
 
-    // Wait for postcode input inside the iframe
-    await frame.waitForSelector('input[name="postcode_search"]', { timeout: 10000 });
-
-    // Get the postcode input handle
-    const postcodeInput = await frame.$('input[name="postcode_search"]');
-    if (!postcodeInput) throw new Error('Postcode input not found inside iframe.');
-
-    // Clear any existing value (3-click) and type postcode
+    // Fill postcode and submit
+    const postcodeInput = await frame.waitForSelector('input[name="postcode_search"]', { timeout: 10000 });
     await postcodeInput.click({ clickCount: 3 });
     await postcodeInput.type(postcode);
-
-    // Press Enter to submit
     await postcodeInput.press('Enter');
 
-    // Wait for address dropdown to appear
+    // Wait for address dropdown
     await frame.waitForSelector('select[name="listSelectAddress"]', { timeout: 10000 });
-    // Wait a bit for options to populate (no waitForTimeout in puppeteer-core, fallback to evaluate + delay)
-    await frame.evaluate(() => new Promise(resolve => setTimeout(resolve, 1500)));
-// Wait a bit for options to populate (no waitForTimeout in puppeteer-core, fallback to evaluate + delay)
     await frame.evaluate(() => new Promise(resolve => setTimeout(resolve, 1500)));
 
-    // Extract address options from dropdown
+    // Extract address options and match house number
     const addressOptions = await frame.$$eval(
       'select[name="listSelectAddress"] option',
       opts => opts.map(opt => ({ value: opt.value, text: opt.textContent.trim() }))
     );
 
-    if (addressOptions.length <= 1) {
-      throw new Error('No addresses found for this postcode');
-    }
+    if (addressOptions.length <= 1) throw new Error('No addresses found for this postcode');
 
-    // Match house number in option text (case insensitive)
     const houseNumberStr = String(houseNumber).trim().toLowerCase();
-    const matchingOption = addressOptions.find(opt =>
-      opt.text.toLowerCase().includes(houseNumberStr)
-    );
+    const matchingOption = addressOptions.find(opt => opt.text.toLowerCase().includes(houseNumberStr));
+    if (!matchingOption) throw new Error(`No address found matching house number "${houseNumber}"`);
 
-    if (!matchingOption) {
-      throw new Error(`No address found matching house number "${houseNumber}"`);
-    }
-
-    // Select the matched address
     await frame.select('select[name="listSelectAddress"]', matchingOption.value);
 
-    // Wait for bin collection input to appear and have value
+    // Wait for bin collection input to populate
     await frame.waitForFunction(() => {
       const recyclingDateInput = document.querySelector('input[name="RecyclingNextDate"]');
       return recyclingDateInput && recyclingDateInput.value.trim().length > 0;
     }, { timeout: 15000 });
 
-    // Extract the data inside iframe
+    // Extract all necessary data
     const result = await frame.evaluate(() => {
-      const uprnInput = document.querySelector('input[name="uprn"]');
-      const uprn = uprnInput ? uprnInput.value : null;
-
+      const getVal = name => document.querySelector(`input[name="${name}"]`)?.value || null;
+      const uprn = getVal('uprn');
       const addressSelect = document.querySelector('select[name="listSelectAddress"]');
       const selectedAddressText = addressSelect ? addressSelect.options[addressSelect.selectedIndex].text : null;
 
-      const getVal = (name) => document.querySelector(`input[name="${name}"]`)?.value || null;
-
       const services = [];
-
       const binTypes = ['Recycling', 'Refuse', 'Paper', 'Food', 'GW'];
       const serviceNames = {
         Recycling: getVal('RecyclingServiceName'),
@@ -107,17 +84,10 @@ async function scrapeAddressAndBinDetails(postcode, houseNumber) {
       };
 
       binTypes.forEach((type, i) => {
-        const binTypeNormalized = (() => {
-          const lower = (type || '').toLowerCase();
-          if (lower === 'gw') return 'garden';
-          return lower;
-        })();
-
+        const binTypeNormalized = type.toLowerCase() === 'gw' ? 'garden' : type.toLowerCase();
         const serviceName = serviceNames[type];
-        if (!serviceName) return;
-
         const collectionDateStr = getVal(`${type}NextDate`);
-        if (!collectionDateStr) return;
+        if (!serviceName || !collectionDateStr) return;
 
         services.push({
           id: `puppeteer-${type}-${i}`,
@@ -158,29 +128,18 @@ async function scrapeAddressAndBinDetails(postcode, houseNumber) {
   }
 }
 
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { postcode, houseNumber } = req.body;
-  if (!postcode) {
-    res.status(400).json({ error: 'postcode required' });
-    return;
-  }
-  if (!houseNumber) {
-    res.status(400).json({ error: 'houseNumber required' });
-    return;
-  }
+  if (!postcode) return res.status(400).json({ error: 'postcode required' });
+  if (!houseNumber) return res.status(400).json({ error: 'houseNumber required' });
 
   try {
     const data = await scrapeAddressAndBinDetails(postcode, houseNumber);
-
-    if (!data || !data.collections?.length) {
-      return res.status(404).json({ error: 'No bin collection data found' });
-    }
+    if (!data || !data.collections?.length) return res.status(404).json({ error: 'No bin collection data found' });
 
     res.status(200).json(data);
   } catch (err) {
