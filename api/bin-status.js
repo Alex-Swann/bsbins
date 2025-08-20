@@ -8,9 +8,11 @@ const FALLBACK_SITE_ID = '69b21282-369d-4d98-ab6d-0bc3591213b4';
 const OLD_ACCESS_TOKEN = 'ZnlyviS9DcLiTnTUoJCLTgryTr1buC1KtAwYSX32f64A0RM5';
 
 async function getBrowser() {
+  let executablePath;
+
   if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
     // Serverless: use chrome-aws-lambda with puppeteer-core
-    const executablePath = await chromium.executablePath;
+    executablePath = await chromium.executablePath;
     if (!executablePath) {
       throw new Error('Chrome executable not found on serverless environment!');
     }
@@ -22,10 +24,9 @@ async function getBrowser() {
       ignoreHTTPSErrors: true,
     });
   } else {
-    // Local dev
     const puppeteerPkg = await import('puppeteer');
-    const executablePath = puppeteerPkg.executablePath();
-    return puppeteerPkg.launch({
+    executablePath = puppeteerPkg.executablePath();
+    return puppeteer.launch({
       headless: true,
       executablePath,
       ignoreHTTPSErrors: true,
