@@ -13,7 +13,7 @@ export async function getBrowser() {
 
   if (isServerless) {
     // Use chrome-aws-lambda / sparticuz-chromium for serverless
-    executablePath = await chromium.executablePath;
+    executablePath = await chromium.executablePath();
     launchArgs = [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'];
     headless = chromium.headless;
     defaultViewport = chromium.defaultViewport;
