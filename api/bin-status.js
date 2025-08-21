@@ -49,10 +49,10 @@ async function getBinStatusViaPage() {
   const browser = await getBrowser();
   const page = await browser.newPage();
 
-  await page.goto(PAGE_URL, { waitUntil: 'networkidle0' });
+  await page.goto(PAGE_URL, { waitUntil: 'networkidle0', timeout: 20000 });
 
   try {
-    await page.waitForSelector('#ccc-recommended-settings', { timeout: 3000 });
+    await page.waitForSelector('#ccc-recommended-settings', { timeout: 10000 });
     await page.click('#ccc-recommended-settings');
     await page.waitForTimeout(1000);
   } catch {}

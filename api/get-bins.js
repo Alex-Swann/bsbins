@@ -18,7 +18,7 @@ export async function getBrowser() {
     if (!require('fs').existsSync(executablePath)) {
       throw new Error(`Chromium not found at ${executablePath}`);
     }
-    
+
     launchArgs = [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'];
     headless = chromium.headless;
     defaultViewport = chromium.defaultViewport;
@@ -47,14 +47,14 @@ async function scrapeAddressAndBinDetails(postcode, houseNumber) {
   const page = await browser.newPage();
 
   try {
-    await page.goto(SEARCH_PAGE_URL, { waitUntil: 'networkidle2' });
+    await page.goto(SEARCH_PAGE_URL, { waitUntil: 'networkidle2', timeout: 20000 });
     await page.waitForSelector('iframe');
 
     const iframeElement = await page.$('iframe');
     const frame = await iframeElement?.contentFrame();
     if (!frame) throw new Error('Could not get iframe content');
 
-    await frame.waitForSelector('input[name="postcode_search"]', { timeout: 10000 });
+    await frame.waitForSelector('input[name="postcode_search"]', { timeout: 20000 });
     const postcodeInput = await frame.$('input[name="postcode_search"]');
     await postcodeInput.click({ clickCount: 3 });
     await postcodeInput.type(postcode);

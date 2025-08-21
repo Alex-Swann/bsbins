@@ -195,32 +195,38 @@ function renderCollections(startDate, collections) {
 
 
 async function fetchCollections(postcode, houseNumber) {
-  const cacheKey = postcode + '|' + houseNumber;
-  if (cache.has(cacheKey)) {
-    return cache.get(cacheKey);
+  try {
+    const cacheKey = postcode + '|' + houseNumber;
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey);
+    }
+
+    const resp = await fetch('/api/get-bins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postcode, houseNumber }),
+    });
+
+    if (!resp.ok) {
+      const errorData = await resp.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to fetch bin collections');
+    }
+
+    const data = await resp.json();
+
+    if (!data.collections || data.collections.length === 0) {
+      throw new Error('No bin collection data available for this address.');
+    }
+
+    // Cache full data object for potential future use (not just collections)
+    cache.set(cacheKey, data);
+
+    return data.collections;
+  } catch (err) {
+    console.error('Failed to fetch collections:', err);
+    // show error to user or handle gracefully
+    return { error: err.message };
   }
-
-  const resp = await fetch('/api/get-bins', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ postcode, houseNumber }),
-  });
-
-  if (!resp.ok) {
-    const errorData = await resp.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Failed to fetch bin collections');
-  }
-
-  const data = await resp.json();
-
-  if (!data.collections || data.collections.length === 0) {
-    throw new Error('No bin collection data available for this address.');
-  }
-
-  // Cache full data object for potential future use (not just collections)
-  cache.set(cacheKey, data);
-
-  return data.collections;
 }
 
 async function fetchAndRenderCollections(postcode, houseNumber) {
