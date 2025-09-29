@@ -60,7 +60,7 @@ async function scrapeAddressAndBinDetails(postcode, houseNumber) {
     await postcodeInput.type(postcode);
     await postcodeInput.press('Enter');
 
-    await frame.waitForSelector('select[name="listSelectAddress"]', { timeout: 10000 });
+    await frame.waitForSelector('select[name="listSelectAddress"]', { timeout: 20000 });
     await frame.evaluate(() => new Promise(resolve => setTimeout(resolve, 1500)));
 
     const addressOptions = await frame.$$eval(
@@ -77,7 +77,7 @@ async function scrapeAddressAndBinDetails(postcode, houseNumber) {
     await frame.waitForFunction(() => {
       const recyclingDateInput = document.querySelector('input[name="RecyclingNextDate"]');
       return recyclingDateInput && recyclingDateInput.value.trim().length > 0;
-    }, { timeout: 15000 });
+    }, { timeout: 20000 });
 
     const result = await frame.evaluate(() => {
       const getVal = (name) => document.querySelector(`input[name="${name}"]`)?.value || null;
